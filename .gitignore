@@ -1,5 +1,7 @@
-**/.env
-**/.venv/
-**/.vscode/
+.env
+.venv/
+.vscode/
 **/deleteme.*
 **/deleteme/
+**/__pycache__/
+sqlite.db
