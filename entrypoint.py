@@ -2,7 +2,6 @@
 
 from os import path
 import sys
-import random
 import logging
 import requests
 from dotenv import load_dotenv
@@ -17,7 +16,7 @@ def sync_playlist(db: DB_Handler, spotify: Spotify_Handler):
     if playlist_obj["empty"]:
         playlist_id = spotify.get_playlist()
         if playlist_id:
-            track_list = spotify.get_tracks_from_playlist()
+            track_list = spotify.get_tracks(True)
             db.insert_data(playlist_id, track_list)
     else:
         playlist_id = playlist_obj["playlist_id"]
@@ -45,10 +44,6 @@ def save_data(
     db.insert_data(playlist_id, sample_list)
 
 
-def get_random_track(track_list: list) -> list:
-    return random.sample(track_list, k=100)
-
-
 def main():
     try:
         logging.basicConfig(level=logging.INFO)
@@ -58,8 +53,8 @@ def main():
         db = DB_Handler(file_path)
         spotify = Spotify_Handler()
         playlist_id, old_track_list = sync_playlist(db, spotify)
-        track_list = spotify.get_tracks_from_api()
-        sample_list = get_random_track(track_list)
+        track_list = spotify.get_tracks()
+        sample_list = spotify.get_random_track(track_list)
         save_data(db, spotify, sample_list, playlist_id)
         if old_track_list:
             spotify.del_tracks_from_playlist(old_track_list)

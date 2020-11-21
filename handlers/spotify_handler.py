@@ -1,6 +1,8 @@
 from os import environ
 import json
 import logging
+import math
+import random
 import requests
 
 ID_LEN = 22
@@ -9,6 +11,7 @@ PLAYLIST_NAME = "A Random randomness"
 
 class Spotify_Handler:
     def __init__(self):
+        self.playlist_size = 100
         self.logger = logging.getLogger("Spotify_Handler")
         self.base_url = "https://api.spotify.com"
         self.playlist_url = f"{self.base_url}/v1/me/playlists"
@@ -42,6 +45,31 @@ class Spotify_Handler:
         else:
             self.playlist_id = None
             self.tracks_url = None
+
+    def __save_tracks(self, track_list: list):
+        headers = {"Accept": "application/json"}
+        data = {"uris": track_list}
+        response = self.session.post(self.tracks_url, headers=headers, data=json.dumps(data))
+        response.raise_for_status()
+
+    def __break_list(self, track_list: list, size: int = 0) -> list:
+        broken_track_list = []
+        if size:
+            playlist_size = size
+        else:
+            playlist_size = self.playlist_size
+
+        if len(track_list) <= playlist_size:
+            broken_track_list.append(track_list)
+        else:
+            length = len(track_list)
+            turns = math.ceil(length / playlist_size)
+            for item in range(turns):
+                start = item * playlist_size
+                end = (item + 1) * playlist_size
+                end = end if end <= len(track_list) else len(track_list)
+                broken_track_list.append(track_list[start:end])
+        return broken_track_list
 
     def playlist_exists(self, playlist_id: str) -> bool:
         exists = False
@@ -96,26 +124,50 @@ class Spotify_Handler:
             self.__set_playlistid(response_dict["id"])
         return self.playlist_id
 
-    def del_tracks_from_playlist(self, track_list: list):
+    def __del_tracks(self, track_list: list):
         data = {"tracks": []}
         for track in track_list:
             data["tracks"].append({"uri": track})
-        self.logger.info(f"Deleting {len(track_list)} tracks from playlist '{self.playlist_id}'")
         response = self.session.delete(self.tracks_url, data=json.dumps(data))
         response.raise_for_status()
 
-    def save_tracks_to_playlist(self, track_list: list):
-        headers = {"Accept": "application/json"}
-        data = {"uris": track_list}
-        self.logger.info(f"Saving {len(track_list)} tracks to playlist '{self.playlist_id}'")
-        response = self.session.post(self.tracks_url, headers=headers, data=json.dumps(data))
-        response.raise_for_status()
+    def del_tracks_from_playlist(self, track_list: list):
+        if isinstance(track_list, list) and track_list:
+            self.logger.info(
+                f"Deleting {len(track_list)} tracks from playlist '{self.playlist_id}'"
+            )
+            broken_list = self.__break_list(track_list)
+            for item in broken_list:
+                self.__del_tracks(item)
+        else:
+            raise TypeError("del_tracks_from_playlist() was called with the wrong value")
 
-    def get_tracks_from_api(self) -> list:
+    def save_tracks_to_playlist(self, track_list: list):
+        if isinstance(track_list, list) and track_list:
+            self.logger.info(f"Saving {len(track_list)} tracks to playlist '{self.playlist_id}'")
+            broken_list = self.__break_list(track_list)
+            for item in broken_list:
+                self.__save_tracks(item)
+
+    def get_random_track(self, track_list: list) -> list:
+        random_list = []
+        if isinstance(track_list, list) and track_list:
+            size = self.playlist_size * 2
+            self.logger.info(f"{size} tracks were randomly generated")
+            random_list = random.sample(track_list, k=size)
+        else:
+            raise TypeError("get_random_track() was called with the wrong value")
+        return random_list
+
+    def get_tracks(self, playlist: bool = False) -> list:
         track_list = []
-        next_url = f"{self.base_url}/v1/me/tracks?limit=50"
         headers = {"Accept": "application/json"}
-        self.logger.info("Getting new load of tracks from Spotify API...")
+        if playlist:
+            next_url = f"{self.tracks_url}?fields=next,items(track.uri)&limit=100"
+            self.logger.info(f"Getting tracks from playlist '{self.playlist_id}'")
+        else:
+            next_url = f"{self.base_url}/v1/me/tracks?limit=50"
+            self.logger.info("Getting new load of tracks from Spotify API...")
         total = 0
         while next_url:
             response = self.session.get(next_url, headers=headers)
@@ -128,27 +180,14 @@ class Spotify_Handler:
                     track_list.append(item["track"]["uri"])
             else:
                 next_url = False
-        self.logger.info(f"New count of tracks is {total}")
-        return track_list
-
-    def get_tracks_from_playlist(self) -> list:
-        url = f"{self.tracks_url}?fields=items(track.uri)&limit=100"
-        headers = {"Accept": "application/json"}
-        self.logger.info(f"Getting tracks from playlist '{self.playlist_id}'")
-        track_list = []
-        response = self.session.get(url, headers=headers)
-        response.raise_for_status()
-        if response.status_code == 200:
-            response_dict = response.json()
-            for item in response_dict["items"]:
-                track_list.append(item["track"]["uri"])
+        self.logger.info(f"tracks count is {total}")
         return track_list
 
 
 def main():
     spoty = Spotify_Handler()
     spoty.get_playlist()
-    spoty.get_tracks_from_api()
+    spoty.get_tracks()
 
 
 if __name__ == "__main__":
