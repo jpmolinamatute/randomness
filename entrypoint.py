@@ -1,33 +1,20 @@
 #! /usr/bin/env python
-from os import environ
+
 import sys
 import math
 import random
 import logging
 import json
 from typing import Dict, List, Text
-import requests
 from dotenv import load_dotenv
+from shared import get_session, BASE_URL
+
 
 PLAYLIST_SIZE = 100
 PLAYLIST_NAME = "A Random randomness"
-BASE_URL = "https://api.spotify.com"
 PLAYLIST_URL = f"{BASE_URL}/v1/me/playlists"
 Track_List = List[Text]
 Break_Track_list = List[Track_List]
-
-
-def get_session():
-    if "SPOTIFY_OAUTH_TOKEN" not in environ:
-        raise ValueError("environment variable 'SPOTIFY_OAUTH_TOKEN' is undefined")
-    session = requests.Session()
-    session.headers.update(
-        {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {environ['SPOTIFY_OAUTH_TOKEN']}",
-        }
-    )
-    return session
 
 
 def check_token(session) -> None:

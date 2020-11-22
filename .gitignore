@@ -4,4 +4,4 @@
 **/deleteme.*
 **/deleteme/
 **/__pycache__/
-sqlite.db
+**/*.db
