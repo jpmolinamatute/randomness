@@ -26,7 +26,7 @@ def check_token(session) -> None:
 
 def save_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     headers = {"Accept": "application/json"}
-    data = {"uris": track_list}
+    data = {"position": 0, "uris": track_list}
     tracks_url = f"{BASE_URL}/v1/playlists/{playlist_id}/tracks"
     response = session.post(tracks_url, headers=headers, data=json.dumps(data))
     response.raise_for_status()
@@ -61,16 +61,16 @@ def del_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     response.raise_for_status()
 
 
-def playlist_exists(session, playlist_id: str) -> bool:
-    exists = False
-    url = f"{BASE_URL}/v1/playlists/{playlist_id}"
-    headers = {"Accept": "application/json"}
-    logging.info(f"Checking if playlist '{playlist_id}' exists")
-    response = session.get(url, headers=headers)
-    response.raise_for_status()
-    if response.status_code == 200:
-        exists = True
-    return exists
+# def playlist_exists(session, playlist_id: str) -> bool:
+#     exists = False
+#     url = f"{BASE_URL}/v1/playlists/{playlist_id}"
+#     headers = {"Accept": "application/json"}
+#     logging.info(f"Checking if playlist '{playlist_id}' exists")
+#     response = session.get(url, headers=headers)
+#     response.raise_for_status()
+#     if response.status_code == 200:
+#         exists = True
+#     return exists
 
 
 def get_playlist(session) -> str:
