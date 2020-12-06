@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 from os import environ
 import urllib
+import uuid
+import pkce
 from dotenv import load_dotenv
 from flask import Flask, request, render_template, url_for, session
-from requests.exceptions import HTTPError
-from randomness.oauth import OAuth
 from randomness.client import get_access_token
 
 
@@ -16,19 +16,19 @@ app.secret_key = "-9GntT4cV/JigA%9S8ldK<xwoi2-{|/yZ2Z;4:"
 @app.route("/")
 @app.route("/home")
 def home():
-    db = OAuth()
-    new_pkce = db.create_pkce()
-    myid = db.get_id()
-    session["oauth_id"] = myid
-
+    verifier, challenge = pkce.generate_pkce_pair()
+    state = str(uuid.uuid4())
+    session["verifier"] = verifier
+    session["challenge"] = challenge
+    session["state"] = state
     params = {
         "response_type": "code",
         "code_challenge_method": "S256",
         "scope": "playlist-read-private,playlist-modify-private,user-library-read",
         "client_id": environ["SPOTIPY_CLIENT_ID"],
         "redirect_uri": f"http://{environ['SERVER_NAME']}:{PORT_NUMBER}/callback",
-        "code_challenge": new_pkce["challenge"],
-        "state": new_pkce["state"],
+        "code_challenge": challenge,
+        "state": state,
     }
     url_params = urllib.parse.urlencode(params)
     content = {
@@ -51,15 +51,18 @@ def callback():
         content["reason"] = error
     elif code:
         try:
-            get_access_token(session["oauth_id"], state, code)
-        except HTTPError as e:
+            if state == session["state"]:
+                get_access_token(code, session["verifier"])
+            else:
+                msg = "ERROR: State doesn't macth "
+                msg += f"we had '{session['state']}' "
+                msg += f"and we got '{state}'"
+                raise Exception(msg)
+        except Exception as e:
             link = f"http://{environ['SERVER_NAME']}:{PORT_NUMBER}"
             content["template"] = "failed.jinja"
             content["reason"] = str(e)
-            content["link"] = link
-        except Exception as e:
-            content["template"] = "failed.jinja"
-            content["reason"] = str(e)
+            content["home_link"] = link
 
     return render_template("layout.jinja", **content)
 

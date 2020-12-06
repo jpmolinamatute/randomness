@@ -1,6 +1,7 @@
 from os import path
 import sqlite3
 import logging
+import uuid
 
 # DEFAULT_DB = ":memory:"
 DEFAULT_DB = "sqlite.db"
@@ -48,22 +49,22 @@ def get_db_path(filename: str) -> str:
 
 
 class DB:
-    def __init__(self, logtag: str, filename: str = DEFAULT_DB):
+    def __init__(self, logtag: str, table: str, row_id: str = "", filename: str = DEFAULT_DB):
         db_file_name = get_db_path(filename)
         self.logger = logging.getLogger(logtag)
-        self.table = ""
-        self.row_id = ""
+        self.table = table
+        self.row_id = row_id if row_id else str(uuid.uuid4())
         self.conn = sqlite3.connect(
             db_file_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
         )
         self.execute("PRAGMA foreign_keys = ON;")
 
-    def insert(self, table: str, row: dict) -> int:
+    def insert(self, row: dict) -> int:
         marks = row_to_marks(row)
         values = row_to_values(row)
         columns = tuple(row.keys())
         cursor = self.conn.cursor()
-        sql_str = f"INSERT INTO {table} {columns} VALUES({marks});"
+        sql_str = f"INSERT INTO {self.table} {columns} VALUES({marks});"
         cursor.execute(sql_str, values)
         self.conn.commit()
         lastrowid = cursor.lastrowid

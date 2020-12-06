@@ -4,6 +4,7 @@ import requests
 from randomness.oauth import OAuth
 
 PORT_NUMBER = 5842
+BASE_URL = "https://api.spotify.com"
 
 
 def str_to_base64(line: str) -> str:
@@ -12,19 +13,27 @@ def str_to_base64(line: str) -> str:
     return encoded_line.decode("utf-8")
 
 
-def get_spotify_user(access_token: str) -> str:
-    url = "https://api.spotify.com/v1/me"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get(url, headers=headers)
+def get_session(access_token: str):
+    session = requests.Session()
+    session.headers.update(
+        {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        }
+    )
+    return session
+
+
+def get_spotify_user(session) -> str:
+    url = f"{BASE_URL}/v1/me"
+    response = session.get(url)
     response.raise_for_status()
     response_dict = response.json()
     return response_dict["uri"]
 
 
-def get_access_token(row_id: str, state: str, code: str):
-    db = OAuth(row_id)
-    db.save_code(state, code)
-    verifier = db.get_verifier()
+def get_access_token(code: str, verifier: str):
     url = "https://accounts.spotify.com/api/token"
     callback_link = f"http://{environ['SERVER_NAME']}:{PORT_NUMBER}/callback"
     cred = f"{environ['SPOTIPY_CLIENT_ID']}:{environ['SPOTIPY_CLIENT_SECRET']}"
@@ -43,12 +52,14 @@ def get_access_token(row_id: str, state: str, code: str):
     response.raise_for_status()
     response_dict = response.json()
     if response.status_code == 200:
+        db = OAuth()
         db.save_access_token(
             response_dict["access_token"],
             response_dict["refresh_token"],
             response_dict["expires_in"],
         )
-        uri = get_spotify_user(response_dict["access_token"])
+        session = get_session(response_dict["access_token"])
+        uri = get_spotify_user(session)
         db.save_uri(uri)
         db.get_all()
     else:
