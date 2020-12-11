@@ -5,12 +5,11 @@ import uuid
 import pkce
 from dotenv import load_dotenv
 from flask import Flask, request, render_template, url_for, session
-from randomness.client import get_access_token
+from randomness import client_start
 
 
 PORT_NUMBER = 5842
 app = Flask(__name__)
-app.secret_key = "-9GntT4cV/JigA%9S8ldK<xwoi2-{|/yZ2Z;4:"
 
 
 @app.route("/")
@@ -49,10 +48,10 @@ def callback():
     if error:
         content["template"] = "failed.jinja"
         content["reason"] = error
-    elif code:
+    elif code and state:
         try:
             if state == session["state"]:
-                get_access_token(code, session["verifier"])
+                client_start(code, session["verifier"])
             else:
                 msg = "ERROR: State doesn't macth "
                 msg += f"we had '{session['state']}' "
@@ -68,6 +67,7 @@ def callback():
 
 
 def run():
+    app.secret_key = environ["SPOTIPY_SECRET"]
     app.run(port=PORT_NUMBER, host=environ["SERVER_NAME"], debug=True)
 
 

@@ -12,8 +12,7 @@ class OAuth(DB):
                 id TEXT NOT NULL PRIMARY KEY,
                 access_token TEXT NOT NULL,
                 refresh_token TEXT NOT NULL,
-                expires_in INTEGER NOT NULL,
-                user_uri TEXT
+                expires_in INTEGER NOT NULL
             );
         """
         self.execute(sql)
@@ -25,33 +24,26 @@ class OAuth(DB):
             "refresh_token": refresh,
             "expires_in": expires,
         }
-        self.insert(row)
+        self.insert(row, "id")
 
-    def save_uri(self, uri: str):
-        sql = f"""
+    def update_access_token(self, access: str, refresh: str):
+        sql_str = f"""
             UPDATE {self.table}
-            SET user_uri = ?
+            SET access_token = ?, refresh_token = ?
             WHERE id = ?;
         """
-        self.execute(sql, (uri, self.row_id))
+        self.execute(sql_str, (access, refresh, self.row_id))
 
-    def get_access_token(self):
+    def get_field(self, field: str):
+        if field not in ["access_token", "refresh_token", "expires_in", "*"]:
+            raise Exception("Error")
         sql = f"""
-            SELECT access_token
+            SELECT {field}
             FROM {self.table}
             WHERE id = ?;
         """
         row = self.query(sql, (self.row_id,))
         return row[0][0]
-
-    def get_all(self):
-        sql = f"""
-            SELECT *
-            FROM {self.table}
-            WHERE id = ?;
-        """
-        row = self.query(sql, (self.row_id,))
-        print(row)
 
 
 if __name__ == "__main__":

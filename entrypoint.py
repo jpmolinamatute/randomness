@@ -7,21 +7,13 @@ import logging
 import json
 from typing import Dict, List, Text
 from dotenv import load_dotenv
-from shared import get_session, BASE_URL
-
+from randomness import BASE_URL, get_session
 
 PLAYLIST_SIZE = 100
 PLAYLIST_NAME = "A Random randomness"
 PLAYLIST_URL = f"{BASE_URL}/v1/me/playlists"
 Track_List = List[Text]
 Break_Track_list = List[Track_List]
-
-
-def check_token(session) -> None:
-    headers = {"Accept": "application/json"}
-    logging.info("Checking if 'SPOTIFY_OAUTH_TOKEN' is still alive")
-    response = session.get(PLAYLIST_URL, headers=headers)
-    response.raise_for_status()
 
 
 def save_tracks(session, playlist_id: str, track_list: Track_List) -> None:
@@ -61,18 +53,6 @@ def del_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     response.raise_for_status()
 
 
-# def playlist_exists(session, playlist_id: str) -> bool:
-#     exists = False
-#     url = f"{BASE_URL}/v1/playlists/{playlist_id}"
-#     headers = {"Accept": "application/json"}
-#     logging.info(f"Checking if playlist '{playlist_id}' exists")
-#     response = session.get(url, headers=headers)
-#     response.raise_for_status()
-#     if response.status_code == 200:
-#         exists = True
-#     return exists
-
-
 def get_playlist(session) -> str:
     next_url = f"{PLAYLIST_URL}?limit=50"
     playlist_id = ""
@@ -96,7 +76,7 @@ def create_playlist(session) -> str:
     data = {
         "name": PLAYLIST_NAME,
         "public": False,
-        "description": "This play list was created by a bot",
+        "description": "This playlist was created by a bot BUT coded by human",
     }
     playlist_id = ""
     logging.info("Creating new playlist")
@@ -162,27 +142,26 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
 
 
 def main() -> None:
+    session = get_session()
+    playlist_id = get_playlist(session)
+    if not playlist_id:
+        playlist_id = create_playlist(session)
+    old_track_list = get_tracks(session, playlist_id)
+    all_track_list = get_tracks(session)
+    new_track_list = get_random_track(all_track_list)
+    save_tracks_to_playlist(session, playlist_id, new_track_list)
+    del_tracks_from_playlist(session, playlist_id, old_track_list)
+
+
+if __name__ == "__main__":
+    load_dotenv()
+    logging.basicConfig(level=logging.INFO)
+    logging.info("I just started")
     try:
-        logging.basicConfig(level=logging.INFO)
-        logging.info("I just started")
-        session = get_session()
-        check_token(session)
-        playlist_id = get_playlist(session)
-        if not playlist_id:
-            playlist_id = create_playlist(session)
-        old_track_list = get_tracks(session, playlist_id)
-        all_track_list = get_tracks(session)
-        new_track_list = get_random_track(all_track_list)
-        save_tracks_to_playlist(session, playlist_id, new_track_list)
-        del_tracks_from_playlist(session, playlist_id, old_track_list)
+        main()
     except Exception:
         logging.exception("I failed :-(")
         sys.exit(2)
     else:
         logging.info("Bye! :-)")
         sys.exit(0)
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    main()

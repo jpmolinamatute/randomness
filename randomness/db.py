@@ -26,6 +26,13 @@ def row_to_values(row: dict) -> tuple:
     return val
 
 
+def row_to_set_values(row: dict) -> str:
+    values = ""
+    for item in row.keys():
+        values += f"{item} = excluded.{item}, "
+    return values[:-2]
+
+
 def get_db_path(filename: str) -> str:
     file_path = ""
     if filename == ":memory:":
@@ -59,12 +66,22 @@ class DB:
         )
         self.execute("PRAGMA foreign_keys = ON;")
 
-    def insert(self, row: dict) -> int:
+    def insert(self, row: dict, upsert: str = "") -> int:
         marks = row_to_marks(row)
         values = row_to_values(row)
         columns = tuple(row.keys())
         cursor = self.conn.cursor()
-        sql_str = f"INSERT INTO {self.table} {columns} VALUES({marks});"
+        sql_str = f"""
+            INSERT INTO {self.table} {columns}
+            VALUES({marks})
+        """
+        if upsert:
+            set_values = row_to_set_values(row)
+            sql_str += f"""
+                ON CONFLICT({upsert}) DO UPDATE SET {set_values};
+            """
+        else:
+            sql_str += ";"
         cursor.execute(sql_str, values)
         self.conn.commit()
         lastrowid = cursor.lastrowid
