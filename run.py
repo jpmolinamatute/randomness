@@ -8,6 +8,16 @@ from flask import Flask, request, render_template, url_for, session
 from randomness import client_start
 
 
+# @TODO: request for a username to run the application
+# @TODO: check for sqlite.db file being in the root directory
+# @TODO: check if username exists in db
+# @TODO: if it DOESN't exist run server.py first &
+#        kill it after getting response from spotify
+# @TODO: Improve user expierence in html pages
+# @TODO: read settings from setting.json
+# @TODO: update README.md file
+
+
 PORT_NUMBER = 5842
 app = Flask(__name__)
 

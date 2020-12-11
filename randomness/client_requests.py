@@ -7,7 +7,7 @@ import logging
 import json
 from typing import Dict, List, Text
 from dotenv import load_dotenv
-from randomness import BASE_URL, get_session
+from .client_aouth import BASE_URL, get_session
 
 PLAYLIST_SIZE = 100
 PLAYLIST_NAME = "A Random randomness"

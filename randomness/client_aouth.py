@@ -2,7 +2,7 @@ from os import environ
 import base64
 from typing import TypedDict, Text
 import requests
-from randomness.oauth import OAuth
+from .db_oauth import OAuth
 
 
 PORT_NUMBER = 5842

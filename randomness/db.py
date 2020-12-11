@@ -2,9 +2,23 @@ from os import path
 import sqlite3
 import logging
 import uuid
+import tempfile
+import errno
 
 # DEFAULT_DB = ":memory:"
 DEFAULT_DB = "sqlite.db"
+
+
+def isWritable(filepath: str) -> bool:
+    try:
+        testfile = tempfile.TemporaryFile(dir=filepath)
+        testfile.close()
+    except OSError as e:
+        if e.errno == errno.EACCES:  # 13
+            return False
+        e.filename = filepath
+        raise
+    return True
 
 
 def row_to_marks(row: dict) -> str:
@@ -34,24 +48,22 @@ def row_to_set_values(row: dict) -> str:
 
 
 def get_db_path(filename: str) -> str:
-    file_path = ""
+    file_path = path.realpath(__file__)
+    file_path = path.dirname(file_path)
+    file_path = path.join(file_path, DEFAULT_DB)
     if filename == ":memory:":
         file_path = filename
-    elif filename:
+    elif isinstance(filename, str) and filename:
         if path.isfile(filename):
             # file already exists
             file_path = filename
-        elif path.isdir(filename):
+        elif path.isdir(filename) and isWritable(filename):
             file_path = path.join(filename, DEFAULT_DB)
-        elif path.isdir(path.dirname(filename)):
-            # file doesn't exist YET
-            file_path = filename
         else:
-            file_path = path.realpath(__file__)
-            file_path = path.dirname(file_path)
-            file_path = path.join(file_path, filename)
-    else:
-        raise ValueError("Error: please provide a valid name")
+            name = path.dirname(filename)
+            if path.isdir(name) and isWritable(name):
+                # file doesn't exist YET
+                file_path = filename
     return file_path
 
 

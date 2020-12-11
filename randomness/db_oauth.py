@@ -1,9 +1,9 @@
-from randomness.db import DB
+from .db import DB
 
 
 class OAuth(DB):
-    def __init__(self, row_id: str = ""):
-        super(OAuth, self).__init__("OAuth", "oauth", row_id)
+    def __init__(self, row_id: str = "", filename: str = ""):
+        super(OAuth, self).__init__("OAuth", "oauth", row_id, filename)
         self.create_table()
 
     def create_table(self) -> None:
