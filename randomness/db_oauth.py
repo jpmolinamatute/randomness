@@ -1,9 +1,10 @@
 from .db import DB
+from .common import SpotifyToken
 
 
 class OAuth(DB):
-    def __init__(self, row_id: str = "", filename: str = ""):
-        super(OAuth, self).__init__("OAuth", "oauth", row_id, filename)
+    def __init__(self, filename: str, row_id: str = ""):
+        super().__init__("OAuth", "oauth", filename, row_id)
         self.create_table()
 
     def create_table(self) -> None:
@@ -17,22 +18,15 @@ class OAuth(DB):
         """
         self.execute(sql)
 
-    def save_access_token(self, access: str, refresh: str, expires: int):
+    def save_access_token(self, new_token: SpotifyToken):
+        # @TODO: expires_in should be an ipoch time
         row = {
             "id": self.row_id,
-            "access_token": access,
-            "refresh_token": refresh,
-            "expires_in": expires,
+            "access_token": new_token["access_token"],
+            "refresh_token": new_token["refresh_token"],
+            "expires_in": new_token["expires_in"],
         }
         self.insert(row, "id")
-
-    def update_access_token(self, access: str, refresh: str):
-        sql_str = f"""
-            UPDATE {self.table}
-            SET access_token = ?, refresh_token = ?
-            WHERE id = ?;
-        """
-        self.execute(sql_str, (access, refresh, self.row_id))
 
     def get_field(self, field: str):
         if field not in ["access_token", "refresh_token", "expires_in", "*"]:
@@ -44,7 +38,3 @@ class OAuth(DB):
         """
         row = self.query(sql, (self.row_id,))
         return row[0][0]
-
-
-if __name__ == "__main__":
-    oa = OAuth()

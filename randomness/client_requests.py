@@ -1,19 +1,73 @@
 #! /usr/bin/env python
 
-import sys
 import math
 import random
 import logging
 import json
-from typing import Dict, List, Text
-from dotenv import load_dotenv
-from .client_aouth import BASE_URL, get_session
+from typing import Dict, Text, List
+import requests
+from randomness import str_to_base64
+from .common import (
+    Track_List,
+    Break_Track_list,
+    BASE_URL,
+    TOKEN_URL,
+    PLAYLIST_SIZE,
+    PLAYLIST_NAME,
+    PLAYLIST_URL,
+    SpotifyToken,
+)
+from .client_aouth import OAuth
+from .settings import load_settings
 
-PLAYLIST_SIZE = 100
-PLAYLIST_NAME = "A Random randomness"
-PLAYLIST_URL = f"{BASE_URL}/v1/me/playlists"
-Track_List = List[Text]
-Break_Track_list = List[Track_List]
+
+def renew_access_token(refresh: str, settings: dict) -> SpotifyToken:
+    logging.info("Getting new access_token")
+    client_id = settings["credentials"]["spotipy_client_id"]
+    client_secret = settings["credentials"]["spotipy_client_secret"]
+    cred = f"{client_id}:{client_secret}"
+    cred_encoded = str_to_base64(cred)
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": f"Basic {cred_encoded}",
+    }
+    data = {"grant_type": "refresh_token", "refresh_token": refresh}
+    response = requests.post(TOKEN_URL, data=data, headers=headers)
+    response.raise_for_status()
+    respose_dict = response.json()
+    if (
+        "access_token" not in respose_dict
+        or "refresh_token" not in respose_dict
+        or "expires_in" not in respose_dict
+    ):
+        msg = "Error: we couldn't get one or more of "
+        msg += "[access_token, refresh_token, expires_in] "
+        msg += "from call to spotify"
+        raise Exception(msg)
+    return respose_dict
+
+
+def get_session(filepath: str):
+    session = requests.Session()
+    settings = load_settings(filepath)
+    uid = settings["user"]["id"]
+    db = OAuth(filepath, uid)
+    expire = db.get_field("expire")
+    # @TODO: this should check if token expired time minus 5 minutes
+    if expire:
+        refresh = db.get_field("refresh_token")
+        new_token = renew_access_token(refresh, settings)
+        db.save_access_token(new_token)
+    access_token = db.get_field("access_token")
+    session.headers.update(
+        {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        }
+    )
+    db.close()
+    return session
 
 
 def save_tracks(session, playlist_id: str, track_list: Track_List) -> None:
@@ -141,8 +195,8 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
     return track_list
 
 
-def main() -> None:
-    session = get_session()
+def generate_playlist(filepath: str) -> None:
+    session = get_session(filepath)
     playlist_id = get_playlist(session)
     if not playlist_id:
         playlist_id = create_playlist(session)
@@ -151,17 +205,3 @@ def main() -> None:
     new_track_list = get_random_track(all_track_list)
     save_tracks_to_playlist(session, playlist_id, new_track_list)
     del_tracks_from_playlist(session, playlist_id, old_track_list)
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    logging.basicConfig(level=logging.INFO)
-    logging.info("I just started")
-    try:
-        main()
-    except Exception:
-        logging.exception("I failed :-(")
-        sys.exit(2)
-    else:
-        logging.info("Bye! :-)")
-        sys.exit(0)

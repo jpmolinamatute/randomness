@@ -1,0 +1,21 @@
+{
+    "playlist": {
+        "name": "A Random randomness",
+        "size": 200
+    },
+    "user": {
+        "id": "3suph4bbmdttlhmecgx02tqhh",
+        "username": false
+    },
+    "server": {
+        "port": 5842,
+        "hostname": "localhost"
+    },
+    "credentials": {
+        "spotipy_client_id": "4196af18cf4242e3879eb14c8abae25a",
+        "spotipy_client_secret": "aeb2cf657cde4f24b94b039b754a5987"
+    },
+    "security": {
+        "secret": "-9GntT4cV/JigA%9S8ldK<xwoi2-{|/yZ2Z;4:"
+    }
+}

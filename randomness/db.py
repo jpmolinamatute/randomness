@@ -2,23 +2,7 @@ from os import path
 import sqlite3
 import logging
 import uuid
-import tempfile
-import errno
-
-# DEFAULT_DB = ":memory:"
-DEFAULT_DB = "sqlite.db"
-
-
-def isWritable(filepath: str) -> bool:
-    try:
-        testfile = tempfile.TemporaryFile(dir=filepath)
-        testfile.close()
-    except OSError as e:
-        if e.errno == errno.EACCES:  # 13
-            return False
-        e.filename = filepath
-        raise
-    return True
+from .common import isWritable, DEFAULT_DB
 
 
 def row_to_marks(row: dict) -> str:
@@ -47,32 +31,19 @@ def row_to_set_values(row: dict) -> str:
     return values[:-2]
 
 
-def get_db_path(filename: str) -> str:
-    file_path = path.realpath(__file__)
-    file_path = path.dirname(file_path)
-    file_path = path.join(file_path, DEFAULT_DB)
-    if filename == ":memory:":
-        file_path = filename
-    elif isinstance(filename, str) and filename:
-        if path.isfile(filename):
-            # file already exists
-            file_path = filename
-        elif path.isdir(filename) and isWritable(filename):
-            file_path = path.join(filename, DEFAULT_DB)
-        else:
-            name = path.dirname(filename)
-            if path.isdir(name) and isWritable(name):
-                # file doesn't exist YET
-                file_path = filename
-    return file_path
-
-
 class DB:
-    def __init__(self, logtag: str, table: str, row_id: str = "", filename: str = DEFAULT_DB):
-        db_file_name = get_db_path(filename)
+    def __init__(self, logtag: str, table: str, filepath: str, row_id: str = ""):
+        if isWritable(filepath):
+            db_file_name = path.join(filepath, DEFAULT_DB)
+        else:
+            msg = f"Settings path '{filepath}' is not writable "
+            msg += "or doesn't exists. "
+            msg += "Please change it and try again"
+            raise Exception(msg)
         self.logger = logging.getLogger(logtag)
         self.table = table
         self.row_id = row_id if row_id else str(uuid.uuid4())
+        self.logger.debug(f"Opening connection to {DEFAULT_DB}")
         self.conn = sqlite3.connect(
             db_file_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
         )
@@ -94,6 +65,7 @@ class DB:
             """
         else:
             sql_str += ";"
+        self.logger.debug(f"Executing {sql_str}")
         cursor.execute(sql_str, values)
         self.conn.commit()
         lastrowid = cursor.lastrowid
@@ -102,12 +74,14 @@ class DB:
 
     def execute(self, sql_str: str, values: tuple = ()) -> None:
         cursor = self.conn.cursor()
+        self.logger.debug(f"Executing {sql_str}")
         cursor.execute(sql_str, values)
         self.conn.commit()
         cursor.close()
 
     def query(self, sql_str: str, values: tuple = ()) -> list:
         cursor = self.conn.cursor()
+        self.logger.debug(f"Executing {sql_str}")
         cursor.execute(sql_str, values)
         self.conn.commit()
         rows = cursor.fetchall()
@@ -115,6 +89,7 @@ class DB:
         return rows
 
     def close(self) -> None:
+        self.logger.debug(f"Closing connection to {DEFAULT_DB}")
         self.conn.close()
 
     def get_id(self) -> str:
