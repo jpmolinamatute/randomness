@@ -30,6 +30,40 @@ ROOT_DIR = path.realpath(__file__)
 ROOT_DIR = path.dirname(ROOT_DIR)
 
 
+def process_callback(code: str, respose_state: str, session_state: str, verifier: str) -> dict:
+    settings = load_settings(ROOT_DIR)
+    server_name = settings["server"]["hostname"]
+    server_port = settings["server"]["port"]
+    uid = settings["user"]["id"]
+    content = {
+        "main_css": url_for("static", filename="css/main.css"),
+        "main_js": url_for("static", filename="js/main.js"),
+    }
+    try:
+        if respose_state == session_state:
+            client_id = settings["credentials"]["spotipy_client_id"]
+            client_secret = settings["credentials"]["spotipy_client_secret"]
+            response = get_access_token(
+                code,
+                verifier,
+                f"http://{server_name}:{server_port}/callback",
+                str_to_base64(f"{client_id}:{client_secret}"),
+            )
+            save_access_token(response, ROOT_DIR, uid)
+            content["onload"] = "closeWindow();"
+            content["template"] = "run.jinja"
+        else:
+            msg = "ERROR: State doesn't macth "
+            msg += f"we had '{session_state}' "
+            msg += f"and we got '{respose_state}'"
+            raise Exception(msg)
+    except Exception as e:
+        content["template"] = "failed.jinja"
+        content["reason"] = str(e)
+        content["home_link"] = f"http://{server_name}:{server_port}"
+    return content
+
+
 @app.route("/shutdown")
 def shutdown():
     try:
@@ -49,44 +83,21 @@ def callback():
     code = request.args.get("code")
     state = request.args.get("state")
     error = request.args.get("error")
-    content = {
-        "main_css": url_for("static", filename="css/main.css"),
-        "main_js": url_for("static", filename="js/main.js"),
-        "template": "run.jinja",
-    }
-    if error:
-        content["template"] = "failed.jinja"
-        content["reason"] = error
-    elif code and state:
-        settings = load_settings(ROOT_DIR)
-        server_name = settings["server"]["hostname"]
-        server_port = settings["server"]["port"]
-        uid = settings["user"]["id"]
-        try:
-            if "state" not in session:
-                raise Exception("state is not found in session")
-            if "verifier" not in session:
-                raise Exception("verifier is not found in session")
-            if state == session["state"]:
-                client_id = settings["credentials"]["spotipy_client_id"]
-                client_secret = settings["credentials"]["spotipy_client_secret"]
-                callback_link = f"http://{server_name}:{server_port}/callback"
-                cred = f"{client_id}:{client_secret}"
-                cred_encoded = str_to_base64(cred)
-                response = get_access_token(code, session["verifier"], callback_link, cred_encoded)
-                save_access_token(response, ROOT_DIR, uid)
-                content["onload"] = "closeWindow();"
-            else:
-                msg = "ERROR: State doesn't macth "
-                msg += f"we had '{session['state']}' "
-                msg += f"and we got '{state}'"
-                raise Exception(msg)
-        except Exception as e:
-            link = f"http://{server_name}:{server_port}"
-            content["template"] = "failed.jinja"
-            content["reason"] = str(e)
-            content["home_link"] = link
 
+    if error:
+        content = {
+            "main_css": url_for("static", filename="css/main.css"),
+            "main_js": url_for("static", filename="js/main.js"),
+            "template": "failed.jinja",
+            "reason": error,
+        }
+    elif code and state:
+        if "state" not in session:
+            raise Exception("state is not found in session")
+        if "verifier" not in session:
+            raise Exception("verifier is not found in session")
+
+        content = process_callback(code, state, session["state"], session["verifier"])
     return render_template("layout.jinja", **content)
 
 

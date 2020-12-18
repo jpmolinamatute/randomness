@@ -1,3 +1,4 @@
+import time
 from .db import DB
 from .common import SpotifyToken
 
@@ -13,24 +14,25 @@ class OAuth(DB):
                 id TEXT NOT NULL PRIMARY KEY,
                 access_token TEXT NOT NULL,
                 refresh_token TEXT NOT NULL,
-                expires_in INTEGER NOT NULL
+                expires_in REAL NOT NULL
             );
         """
         self.execute(sql)
 
     def save_access_token(self, new_token: SpotifyToken):
-        # @TODO: expires_in should be an ipoch time
+        epoch = time.time()
+        epoch += new_token["expires_in"]
         row = {
             "id": self.row_id,
             "access_token": new_token["access_token"],
             "refresh_token": new_token["refresh_token"],
-            "expires_in": new_token["expires_in"],
+            "expires_in": epoch,
         }
         self.insert(row, "id")
 
     def get_field(self, field: str):
         if field not in ["access_token", "refresh_token", "expires_in", "*"]:
-            raise Exception("Error")
+            raise Exception(f"ERROR: field '{field}' is invalid")
         sql = f"""
             SELECT {field}
             FROM {self.table}

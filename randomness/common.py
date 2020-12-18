@@ -1,3 +1,4 @@
+import base64
 from typing import List, Text, TypedDict
 import tempfile
 import errno
@@ -18,6 +19,12 @@ class SpotifyToken(TypedDict):
     access_token: Text
     refresh_token: Text
     expires_in: int
+
+
+def str_to_base64(line: str) -> str:
+    byte_line = line.encode("utf-8")
+    encoded_line = base64.b64encode(byte_line)
+    return encoded_line.decode("utf-8")
 
 
 def isWritable(filepath: str) -> bool:

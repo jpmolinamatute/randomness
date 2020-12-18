@@ -1,14 +1,15 @@
 #! /usr/bin/env python
 
 import math
+import time
 import random
 import logging
 import json
 from typing import Dict, Text, List
 import requests
-from randomness import str_to_base64
 from .common import (
     Track_List,
+    str_to_base64,
     Break_Track_list,
     BASE_URL,
     TOKEN_URL,
@@ -52,9 +53,9 @@ def get_session(filepath: str):
     settings = load_settings(filepath)
     uid = settings["user"]["id"]
     db = OAuth(filepath, uid)
-    expire = db.get_field("expire")
-    # @TODO: this should check if token expired time minus 5 minutes
-    if expire:
+    expire = db.get_field("expires_in")
+    now = time.time()
+    if expire - 300 <= now:
         refresh = db.get_field("refresh_token")
         new_token = renew_access_token(refresh, settings)
         db.save_access_token(new_token)
