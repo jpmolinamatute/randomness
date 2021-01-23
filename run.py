@@ -75,7 +75,7 @@ def shutdown():
     finally:
         logging.info("Calling generate_playlist()")
         generate_playlist(ROOT_DIR)
-    return "Bye!"
+    return "<p>Bye!</p>"
 
 
 @app.route("/callback")
@@ -140,7 +140,7 @@ def launch_server(server_name: str, server_port: int, secret: str):
     app.run(port=server_port, host=server_name, debug=True)
 
 
-def start():
+def main():
     db_path = path.join(ROOT_DIR, DEFAULT_DB)
     settings_path = path.join(ROOT_DIR, DEFAULT_SETTINGS)
     if path.isfile(settings_path):
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logging.info("I just started")
     try:
-        start()
+        main()
     except KeyboardInterrupt:
         logging.info("Bye!")
     except Exception as e:

@@ -3,7 +3,7 @@ from .common import TOKEN_URL, SpotifyToken
 from .db_oauth import OAuth
 
 
-def save_access_token(response: SpotifyToken, filepath: str, uid: str):
+def save_access_token(response: SpotifyToken, filepath: str, uid: str) -> None:
     db = OAuth(filepath, uid)
     db.save_access_token(response)
     db.close()

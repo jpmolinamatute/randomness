@@ -4,8 +4,8 @@ from .common import SpotifyToken
 
 
 class OAuth(DB):
-    def __init__(self, filename: str, row_id: str = ""):
-        super().__init__("OAuth", "oauth", filename, row_id)
+    def __init__(self, filepath: str, row_id: str = ""):
+        super().__init__("OAuth", "oauth", filepath, row_id)
         self.create_table()
 
     def create_table(self) -> None:

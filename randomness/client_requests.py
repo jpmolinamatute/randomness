@@ -2,7 +2,8 @@
 
 import math
 import time
-import random
+
+# import random
 import logging
 import json
 from typing import Dict, Text, List
@@ -20,6 +21,7 @@ from .common import (
 )
 from .client_aouth import OAuth
 from .settings import load_settings
+from .db_library import Library
 
 
 def renew_access_token(refresh: str, settings: dict) -> SpotifyToken:
@@ -159,15 +161,15 @@ def save_tracks_to_playlist(session, playlist_id: str, track_list: Track_List) -
             save_tracks(session, playlist_id, item)
 
 
-def get_random_track(track_list: Track_List) -> Track_List:
-    random_list = []
-    if isinstance(track_list, list) and track_list:
-        size = PLAYLIST_SIZE * 2
-        logging.info(f"{size} tracks were randomly generated")
-        random_list = random.sample(track_list, k=size)
-    else:
-        raise TypeError("get_random_track() was called with the wrong value")
-    return random_list
+# def get_random_track(track_list: Track_List) -> Track_List:
+#     random_list = []
+#     if isinstance(track_list, list) and track_list:
+#         size = PLAYLIST_SIZE * 2
+#         logging.info(f"{size} tracks were randomly generated")
+#         random_list = random.sample(track_list, k=size)
+#     else:
+#         raise TypeError("get_random_track() was called with the wrong value")
+#     return random_list
 
 
 def get_tracks(session, playlist_id: str = "") -> Track_List:
@@ -196,13 +198,65 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
     return track_list
 
 
+def get_library(session) -> list:
+    headers = {"Accept": "application/json"}
+    next_url = f"{BASE_URL}/v1/me/tracks?limit=50"
+    logging.info("Getting library from Spotify Library...")
+    total = 0
+    track_list = []
+    while next_url:
+        response = session.get(next_url, headers=headers)
+        response.raise_for_status()
+        if response.status_code == 200:
+            response_dict = response.json()
+            next_url = response_dict["next"]
+            for item in response_dict["items"]:
+                total += 1
+                track_list.append(
+                    (
+                        item["track"]["uri"],
+                        item["track"]["name"].lower(),
+                        item["added_at"],
+                        int(item["track"]["duration_ms"]),
+                        item["track"]["album"]["uri"],
+                        item["track"]["album"]["name"].lower(),
+                        item["track"]["artists"][0]["uri"],
+                        item["track"]["artists"][0]["name"].lower(),
+                    )
+                )
+        else:
+            next_url = ""
+    logging.info(f"tracks count is {total}")
+    return track_list
+
+
+def reset_library(filepath: str, lib) -> None:
+    lib.reset_table()
+    session = get_session(filepath)
+    whole_library = get_library(session)
+    columns = (
+        "uri",
+        "name",
+        "added_at",
+        "duration_ms",
+        "album_uri",
+        "album_name",
+        "artists_uri",
+        "artists_name",
+    )
+    lib.insert_many(whole_library, columns)
+
+
 def generate_playlist(filepath: str) -> None:
+    logging.info("Analysis is starting")
+    lib = Library(filepath)
     session = get_session(filepath)
     playlist_id = get_playlist(session)
     if not playlist_id:
         playlist_id = create_playlist(session)
     old_track_list = get_tracks(session, playlist_id)
-    all_track_list = get_tracks(session)
-    new_track_list = get_random_track(all_track_list)
+    # all_track_list = get_tracks(session)
+    # new_track_list = get_random_track(all_track_list)
+    new_track_list = lib.get_sample(PLAYLIST_SIZE * 4)
     save_tracks_to_playlist(session, playlist_id, new_track_list)
     del_tracks_from_playlist(session, playlist_id, old_track_list)

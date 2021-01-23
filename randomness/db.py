@@ -5,9 +5,9 @@ import uuid
 from .common import isWritable, DEFAULT_DB
 
 
-def row_to_marks(row: dict) -> str:
+def row_to_marks(column: tuple) -> str:
     marks = ""
-    size = len(row)
+    size = len(column)
     for i in range(size):
         if (i + 1) < size:
             marks += "?, "
@@ -50,9 +50,9 @@ class DB:
         self.execute("PRAGMA foreign_keys = ON;")
 
     def insert(self, row: dict, upsert: str = "") -> int:
-        marks = row_to_marks(row)
-        values = row_to_values(row)
         columns = tuple(row.keys())
+        marks = row_to_marks(columns)
+        values = row_to_values(row)
         cursor = self.conn.cursor()
         sql_str = f"""
             INSERT INTO {self.table} {columns}
@@ -72,9 +72,21 @@ class DB:
         cursor.close()
         return lastrowid
 
-    def execute(self, sql_str: str, values: tuple = ()) -> None:
+    def insert_many(self, content: list, columns: tuple) -> None:
+        marks = row_to_marks(columns)
+        sql_str = f"""
+            INSERT INTO {self.table} {columns}
+            VALUES ({marks});
+        """
         cursor = self.conn.cursor()
         self.logger.debug(f"Executing {sql_str}")
+        cursor.executemany(sql_str, content)
+        self.conn.commit()
+        cursor.close()
+
+    def execute(self, sql_str: str, values: tuple = ()) -> None:
+        cursor = self.conn.cursor()
+        self.logger.debug(f"Executing\n{sql_str}")
         cursor.execute(sql_str, values)
         self.conn.commit()
         cursor.close()
@@ -109,3 +121,12 @@ class DB:
             self.row_id = oauth_id
             valid = True
         return valid
+
+    def create_table(self):
+        raise NotImplementedError
+
+    def reset_table(self) -> None:
+        self.logger.debug(f"Reseting table {self.table}")
+        sql = f"DROP TABLE IF EXISTS {self.table};"
+        self.execute(sql)
+        self.create_table()
