@@ -1,6 +1,7 @@
 .env
 .venv/
 .vscode/
+settings.json
 **/deleteme.*
 **/deleteme/
 **/__pycache__/

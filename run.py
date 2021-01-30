@@ -116,7 +116,7 @@ def home():
     params = {
         "response_type": "code",
         "code_challenge_method": "S256",
-        "scope": "playlist-read-private,playlist-modify-private,user-library-read",
+        "scope": "playlist-read-private,playlist-modify-private,user-library-read,user-library-modify",
         "client_id": client_id,
         "redirect_uri": f"http://{server_name}:{server_port}/callback",
         "code_challenge": challenge,

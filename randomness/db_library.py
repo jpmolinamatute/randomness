@@ -14,6 +14,20 @@ class Library(DB):
         self.mark3 = mark3
         self.create_table()
 
+    def reset_table(self) -> None:
+        self.logger.debug(f"Reseting table {self.table}")
+        sql = [
+            f"DROP TABLE IF EXISTS {self.table};",
+            f"DROP VIEW IF EXISTS {self.g1_name};",
+            f"DROP VIEW IF EXISTS {self.g2_name};",
+            f"DROP VIEW IF EXISTS {self.g3_name};",
+            f"DROP VIEW IF EXISTS {self.g4_name};",
+        ]
+
+        for sql_str in sql:
+            self.execute(sql_str)
+        self.create_table()
+
     def create_table(self) -> None:
         sql = []
         sql.append(
@@ -84,6 +98,7 @@ class Library(DB):
                 );
             """
         )
+
         for sql_str in sql:
             self.execute(sql_str)
 
