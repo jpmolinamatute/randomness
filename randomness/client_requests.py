@@ -6,6 +6,7 @@ import logging
 import json
 from typing import Dict, Text, List
 import requests
+from .config import load_config
 from .common import (
     Track_List,
     str_to_base64,
@@ -18,7 +19,6 @@ from .common import (
     SpotifyToken,
 )
 from .client_aouth import OAuth
-from .settings import load_settings
 from .db_library import Library
 
 
@@ -50,7 +50,7 @@ def renew_access_token(refresh: str, settings: dict) -> SpotifyToken:
 
 def get_session(filepath: str):
     session = requests.Session()
-    settings = load_settings(filepath)
+    settings = load_config(filepath)
     uid = settings["user"]["id"]
     db = OAuth(filepath, uid)
     expire = db.get_field("expires_in")

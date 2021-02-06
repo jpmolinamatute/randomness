@@ -5,7 +5,6 @@ import errno
 
 # DEFAULT_DB = ":memory:"
 DEFAULT_DB = "sqlite.db"
-DEFAULT_SETTINGS = "settings.json"
 BASE_URL = "https://api.spotify.com"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 PLAYLIST_SIZE = 100

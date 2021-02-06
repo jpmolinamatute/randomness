@@ -6,19 +6,15 @@ import uuid
 import logging
 import pkce
 from flask import Flask, request, render_template, url_for, session
+from randomness.config import load_config
 from randomness import (
     get_access_token,
     str_to_base64,
     save_access_token,
-    DEFAULT_SETTINGS,
     DEFAULT_DB,
     generate_playlist,
-    create_settings,
-    validate_settings,
-    load_settings,
 )
 
-# @TODO: validate settings
 # @TODO: Improve user expierence in html pages
 # @TODO: update README.md file
 # @TODO: create systemd service file
@@ -31,18 +27,18 @@ ROOT_DIR = path.dirname(ROOT_DIR)
 
 
 def process_callback(code: str, respose_state: str, session_state: str, verifier: str) -> dict:
-    settings = load_settings(ROOT_DIR)
-    server_name = settings["server"]["hostname"]
-    server_port = settings["server"]["port"]
-    uid = settings["user"]["id"]
+    config = load_config(ROOT_DIR)
+    server_name = config["server"]["hostname"]
+    server_port = config["server"]["port"]
+    uid = config["user"]["id"]
     content = {
         "main_css": url_for("static", filename="css/main.css"),
         "main_js": url_for("static", filename="js/main.js"),
     }
     try:
         if respose_state == session_state:
-            client_id = settings["credentials"]["spotipy_client_id"]
-            client_secret = settings["credentials"]["spotipy_client_secret"]
+            client_id = config["credentials"]["spotipy_client_id"]
+            client_secret = config["credentials"]["spotipy_client_secret"]
             response = get_access_token(
                 code,
                 verifier,
@@ -109,14 +105,15 @@ def home():
     session["verifier"] = verifier
     session["challenge"] = challenge
     session["state"] = state
-    settings = load_settings(ROOT_DIR)
-    server_name = settings["server"]["hostname"]
-    server_port = settings["server"]["port"]
-    client_id = settings["credentials"]["spotipy_client_id"]
+    config = load_config(ROOT_DIR)
+    server_name = config["server"]["hostname"]
+    server_port = config["server"]["port"]
+    client_id = config["credentials"]["spotipy_client_id"]
+    scope = "playlist-read-private,playlist-modify-private,user-library-read,user-library-modify"
     params = {
         "response_type": "code",
         "code_challenge_method": "S256",
-        "scope": "playlist-read-private,playlist-modify-private,user-library-read,user-library-modify",
+        "scope": scope,
         "client_id": client_id,
         "redirect_uri": f"http://{server_name}:{server_port}/callback",
         "code_challenge": challenge,
@@ -142,22 +139,14 @@ def launch_server(server_name: str, server_port: int, secret: str):
 
 def main():
     db_path = path.join(ROOT_DIR, DEFAULT_DB)
-    settings_path = path.join(ROOT_DIR, DEFAULT_SETTINGS)
-    if path.isfile(settings_path):
-        if validate_settings(ROOT_DIR):
-            settings = load_settings(ROOT_DIR)
-            if path.isfile(db_path):
-                generate_playlist(ROOT_DIR)
-            else:
-                server_name = settings["server"]["hostname"]
-                server_port = settings["server"]["port"]
-                secret = settings["security"]["secret"]
-                launch_server(server_name, server_port, secret)
-        else:
-            raise Exception(f"setting file '{settings_path}' is invalid")
+    config = load_config(ROOT_DIR)
+    if path.isfile(db_path):
+        generate_playlist(ROOT_DIR)
     else:
-        create_settings(ROOT_DIR)
-        raise Exception(f"setting file '{settings_path}' doesn't exist")
+        server_name = config["server"]["hostname"]
+        server_port = config["server"]["port"]
+        secret = config["security"]["secret"]
+        launch_server(server_name, server_port, secret)
 
 
 if __name__ == "__main__":
