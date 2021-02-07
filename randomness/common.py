@@ -3,12 +3,10 @@ from typing import List, Text, TypedDict
 import tempfile
 import errno
 
-# DEFAULT_DB = ":memory:"
-DEFAULT_DB = "sqlite.db"
+
 BASE_URL = "https://api.spotify.com"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
-PLAYLIST_SIZE = 100
-PLAYLIST_NAME = "A Random randomness"
+
 PLAYLIST_URL = f"{BASE_URL}/v1/me/playlists"
 Track_List = List[Text]
 Break_Track_list = List[Track_List]

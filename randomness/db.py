@@ -2,7 +2,8 @@ from os import path
 import sqlite3
 import logging
 import uuid
-from .common import isWritable, DEFAULT_DB
+from .config import load_config
+from .common import isWritable
 
 
 def row_to_marks(column: tuple) -> str:
@@ -33,19 +34,20 @@ def row_to_set_values(row: dict) -> str:
 
 class DB:
     def __init__(self, logtag: str, table: str, filepath: str, row_id: str = ""):
-        if isWritable(filepath):
-            db_file_name = path.join(filepath, DEFAULT_DB)
-        else:
+        if not isWritable(filepath):
             msg = f"Settings path '{filepath}' is not writable "
             msg += "or doesn't exists. "
             msg += "Please change it and try again"
             raise Exception(msg)
+
+        config = load_config(filepath)
+        self.db_file_name = path.join(filepath, config["database"]["filename"])
         self.logger = logging.getLogger(logtag)
         self.table = table
         self.row_id = row_id if row_id else str(uuid.uuid4())
-        self.logger.debug(f"Opening connection to {DEFAULT_DB}")
+        self.logger.debug(f"Opening connection to {self.db_file_name}")
         self.conn = sqlite3.connect(
-            db_file_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+            self.db_file_name, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
         )
         self.execute("PRAGMA foreign_keys = ON;")
 
@@ -101,7 +103,7 @@ class DB:
         return rows
 
     def close(self) -> None:
-        self.logger.debug(f"Closing connection to {DEFAULT_DB}")
+        self.logger.debug(f"Closing connection to {self.db_file_name}")
         self.conn.close()
 
     def get_id(self) -> str:

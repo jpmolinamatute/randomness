@@ -13,8 +13,6 @@ from .common import (
     Break_Track_list,
     BASE_URL,
     TOKEN_URL,
-    PLAYLIST_SIZE,
-    PLAYLIST_NAME,
     PLAYLIST_URL,
     SpotifyToken,
 )
@@ -79,12 +77,8 @@ def save_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     response.raise_for_status()
 
 
-def break_list(track_list: Track_List, size: int = 0) -> Break_Track_list:
+def break_list(track_list: Track_List, playlist_size: int) -> Break_Track_list:
     broken_track_list = []
-    if size:
-        playlist_size = size
-    else:
-        playlist_size = PLAYLIST_SIZE
 
     if len(track_list) <= playlist_size:
         broken_track_list.append(track_list)
@@ -108,7 +102,7 @@ def del_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     response.raise_for_status()
 
 
-def get_playlist(session) -> str:
+def get_playlist(session, playlist_name: str) -> str:
     next_url = f"{PLAYLIST_URL}?limit=50"
     playlist_id = ""
     headers = {"Accept": "application/json"}
@@ -120,16 +114,16 @@ def get_playlist(session) -> str:
             response_dict = response.json()
             next_url = response_dict["next"]
             for item in response_dict["items"]:
-                if item["name"] == PLAYLIST_NAME:
+                if item["name"] == playlist_name:
                     playlist_id = item["id"]
         else:
             next_url = ""
     return playlist_id
 
 
-def create_playlist(session) -> str:
+def create_playlist(session, playlist_name: str) -> str:
     data = {
-        "name": PLAYLIST_NAME,
+        "name": playlist_name,
         "public": False,
         "description": "This playlist was created by a bot BUT coded by human",
     }
@@ -146,7 +140,7 @@ def create_playlist(session) -> str:
 def del_tracks_from_playlist(session, playlist_id: str, track_list: Track_List) -> None:
     if isinstance(track_list, list) and track_list:
         logging.info(f"Deleting {len(track_list)} tracks from playlist '{playlist_id}'")
-        broken_list = break_list(track_list)
+        broken_list = break_list(track_list, 100)
         for item in broken_list:
             del_tracks(session, playlist_id, item)
 
@@ -154,7 +148,7 @@ def del_tracks_from_playlist(session, playlist_id: str, track_list: Track_List) 
 def save_tracks_to_playlist(session, playlist_id: str, track_list: Track_List) -> None:
     if isinstance(track_list, list) and track_list:
         logging.info(f"Saving {len(track_list)} tracks to playlist '{playlist_id}'")
-        broken_list = break_list(track_list)
+        broken_list = break_list(track_list, 100)
         for item in broken_list:
             save_tracks(session, playlist_id, item)
 
@@ -238,10 +232,13 @@ def generate_playlist(filepath: str) -> None:
     lib = Library(filepath)
     session = get_session(filepath)
     reset_library(lib, session)
-    playlist_id = get_playlist(session)
+    config = load_config(filepath)
+    playlist_name = config["playlist"]["name"]
+    playlist_size = config["playlist"]["size"]
+    playlist_id = get_playlist(session, playlist_name)
     if not playlist_id:
-        playlist_id = create_playlist(session)
+        playlist_id = create_playlist(session, playlist_name)
     old_track_list = get_tracks(session, playlist_id)
-    new_track_list = lib.get_sample(PLAYLIST_SIZE * 4)
+    new_track_list = lib.get_sample(playlist_size)
     save_tracks_to_playlist(session, playlist_id, new_track_list)
     del_tracks_from_playlist(session, playlist_id, old_track_list)

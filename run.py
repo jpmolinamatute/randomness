@@ -11,14 +11,13 @@ from randomness import (
     get_access_token,
     str_to_base64,
     save_access_token,
-    DEFAULT_DB,
     generate_playlist,
 )
 
 # @TODO: Improve user expierence in html pages
+# @TODO: improve error handling
 # @TODO: update README.md file
 # @TODO: create systemd service file
-# @TODO: improve error handling
 
 
 app = Flask(__name__)
@@ -138,8 +137,9 @@ def launch_server(server_name: str, server_port: int, secret: str):
 
 
 def main():
-    db_path = path.join(ROOT_DIR, DEFAULT_DB)
     config = load_config(ROOT_DIR)
+    db_file = config["database"]["filename"]
+    db_path = path.join(ROOT_DIR, db_file)
     if path.isfile(db_path):
         generate_playlist(ROOT_DIR)
     else:
