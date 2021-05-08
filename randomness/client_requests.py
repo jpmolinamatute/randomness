@@ -31,18 +31,23 @@ def renew_access_token(refresh: str, settings: dict) -> SpotifyToken:
         "Authorization": f"Basic {cred_encoded}",
     }
     data = {"grant_type": "refresh_token", "refresh_token": refresh}
-    response = requests.post(TOKEN_URL, data=data, headers=headers)
-    response.raise_for_status()
-    respose_dict = response.json()
-    if (
-        "access_token" not in respose_dict
-        or "refresh_token" not in respose_dict
-        or "expires_in" not in respose_dict
-    ):
-        msg = "Error: we couldn't get one or more of "
-        msg += "[access_token, refresh_token, expires_in] "
-        msg += "from call to spotify"
-        raise Exception(msg)
+    try:
+        response = requests.post(TOKEN_URL, data=data, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError:
+        logging.error(response.reason)
+        raise
+    else:
+        respose_dict = response.json()
+        if (
+            "access_token" not in respose_dict
+            or "refresh_token" not in respose_dict
+            or "expires_in" not in respose_dict
+        ):
+            msg = "Error: we couldn't get one or more of "
+            msg += "[access_token, refresh_token, expires_in] "
+            msg += "from call to spotify"
+            raise Exception(msg)
     return respose_dict
 
 
@@ -73,8 +78,12 @@ def save_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     headers = {"Accept": "application/json"}
     data = {"position": 0, "uris": track_list}
     tracks_url = f"{BASE_URL}/v1/playlists/{playlist_id}/tracks"
-    response = session.post(tracks_url, headers=headers, data=json.dumps(data))
-    response.raise_for_status()
+    try:
+        response = session.post(tracks_url, headers=headers, data=json.dumps(data))
+        response.raise_for_status()
+    except requests.exceptions.HTTPError:
+        logging.error(response.reason)
+        raise
 
 
 def break_list(track_list: Track_List, playlist_size: int) -> Break_Track_list:
@@ -98,8 +107,12 @@ def del_tracks(session, playlist_id: str, track_list: Track_List) -> None:
     for track in track_list:
         data["tracks"].append({"uri": track})
     tracks_url = f"{BASE_URL}/v1/playlists/{playlist_id}/tracks"
-    response = session.delete(tracks_url, data=json.dumps(data))
-    response.raise_for_status()
+    try:
+        response = session.delete(tracks_url, data=json.dumps(data))
+        response.raise_for_status()
+    except requests.exceptions.HTTPError:
+        logging.error(response.reason)
+        raise
 
 
 def get_playlist(session, playlist_name: str) -> str:
@@ -108,16 +121,21 @@ def get_playlist(session, playlist_name: str) -> str:
     headers = {"Accept": "application/json"}
     while next_url and not playlist_id:
         logging.info("Getting user's playlist list")
-        response = session.get(next_url, headers=headers)
-        response.raise_for_status()
-        if response.status_code == 200:
-            response_dict = response.json()
-            next_url = response_dict["next"]
-            for item in response_dict["items"]:
-                if item["name"] == playlist_name:
-                    playlist_id = item["id"]
+        try:
+            response = session.get(next_url, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            logging.error(response.reason)
+            raise
         else:
-            next_url = ""
+            if response.status_code == 200:
+                response_dict = response.json()
+                next_url = response_dict["next"]
+                for item in response_dict["items"]:
+                    if item["name"] == playlist_name:
+                        playlist_id = item["id"]
+            else:
+                next_url = ""
     return playlist_id
 
 
@@ -129,11 +147,16 @@ def create_playlist(session, playlist_name: str) -> str:
     }
     playlist_id = ""
     logging.info("Creating new playlist")
-    response = session.post(PLAYLIST_URL, data=json.dumps(data))
-    response.raise_for_status()
-    if response.status_code == 200 or response.status_code == 201:
-        response_dict = response.json()
-        playlist_id = response_dict["id"]
+    try:
+        response = session.post(PLAYLIST_URL, data=json.dumps(data))
+        response.raise_for_status()
+    except requests.exceptions.HTTPError:
+        logging.error(response.reason)
+        raise
+    else:
+        if response.status_code == 200 or response.status_code == 201:
+            response_dict = response.json()
+            playlist_id = response_dict["id"]
     return playlist_id
 
 
@@ -165,16 +188,21 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
         logging.info("Getting new load of tracks from Spotify Library...")
     total = 0
     while next_url:
-        response = session.get(next_url, headers=headers)
-        response.raise_for_status()
-        if response.status_code == 200:
-            response_dict = response.json()
-            next_url = response_dict["next"]
-            for item in response_dict["items"]:
-                total += 1
-                track_list.append(item["track"]["uri"])
+        try:
+            response = session.get(next_url, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            logging.error(response.reason)
+            raise
         else:
-            next_url = ""
+            if response.status_code == 200:
+                response_dict = response.json()
+                next_url = response_dict["next"]
+                for item in response_dict["items"]:
+                    total += 1
+                    track_list.append(item["track"]["uri"])
+            else:
+                next_url = ""
     logging.info(f"tracks count is {total}")
     return track_list
 
@@ -186,27 +214,32 @@ def get_library(session) -> list:
     total = 0
     track_list = []
     while next_url:
-        response = session.get(next_url, headers=headers)
-        response.raise_for_status()
-        if response.status_code == 200:
-            response_dict = response.json()
-            next_url = response_dict["next"]
-            for item in response_dict["items"]:
-                total += 1
-                track_list.append(
-                    (
-                        item["track"]["uri"],
-                        item["track"]["name"].lower(),
-                        item["added_at"],
-                        int(item["track"]["duration_ms"]),
-                        item["track"]["album"]["uri"],
-                        item["track"]["album"]["name"].lower(),
-                        item["track"]["artists"][0]["uri"],
-                        item["track"]["artists"][0]["name"].lower(),
-                    )
-                )
+        try:
+            response = session.get(next_url, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            logging.error(response.reason)
+            raise
         else:
-            next_url = ""
+            if response.status_code == 200:
+                response_dict = response.json()
+                next_url = response_dict["next"]
+                for item in response_dict["items"]:
+                    total += 1
+                    track_list.append(
+                        (
+                            item["track"]["uri"],
+                            item["track"]["name"].lower(),
+                            item["added_at"],
+                            int(item["track"]["duration_ms"]),
+                            item["track"]["album"]["uri"],
+                            item["track"]["album"]["name"].lower(),
+                            item["track"]["artists"][0]["uri"],
+                            item["track"]["artists"][0]["name"].lower(),
+                        )
+                    )
+            else:
+                next_url = ""
     logging.info(f"tracks count is {total}")
     return track_list
 

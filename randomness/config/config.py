@@ -1,6 +1,6 @@
 from os import path
 import yaml
-from jsonschema import validate, ValidationError
+from jsonschema import validate
 from .schema import (
     CONFIG_SCHEMA,
     DEFAULT_CONFIG_NAME,
