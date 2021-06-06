@@ -274,4 +274,5 @@ def generate_playlist(filepath: str) -> None:
     old_track_list = get_tracks(session, playlist_id)
     new_track_list = lib.get_sample(playlist_size)
     save_tracks_to_playlist(session, playlist_id, new_track_list)
+    save_tracks_to_playlist(session, playlist_id, new_track_list)
     del_tracks_from_playlist(session, playlist_id, old_track_list)

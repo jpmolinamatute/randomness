@@ -3,15 +3,15 @@ from .common import Track_List
 
 
 class Library(DB):
-    def __init__(self, filepath: str, mark1: int = 20, mark2: int = 55, mark3: int = 94):
+    def __init__(self, filepath: str):
         super().__init__("Library", "library", filepath)
         self.g1_name = "G1"
         self.g2_name = "G2"
         self.g3_name = "G3"
         self.g4_name = "G4"
-        self.mark1 = mark1
-        self.mark2 = mark2
-        self.mark3 = mark3
+        self.mark1 = 2
+        self.mark2 = 7
+        self.mark3 = 24
         self.create_table()
 
     def reset_table(self) -> None:
@@ -113,81 +113,22 @@ class Library(DB):
         """
         return self._total(sql_str)
 
-    def g1_total(self) -> int:
-        sql_str = f"""
-            SELECT COUNT(uri) AS total
-            FROM {self.g1_name};
-        """
-        return self._total(sql_str)
-
-    def g2_total(self) -> int:
-        sql_str = f"""
-            SELECT COUNT(uri) AS total
-            FROM {self.g2_name};
-        """
-        return self._total(sql_str)
-
-    def g3_total(self) -> int:
-        sql_str = f"""
-            SELECT COUNT(uri) AS total
-            FROM {self.g3_name};
-        """
-        return self._total(sql_str)
-
-    def g4_total(self) -> int:
-        sql_str = f"""
-            SELECT COUNT(uri) AS total
-            FROM {self.g4_name};
-        """
-        return self._total(sql_str)
-
-    def _sample(self, sql_str) -> Track_List:
+    def sample(self, view:str, limit:int ) -> Track_List:
         func = lambda row: row[0]
+        sql_str = f"""
+            SELECT uri
+            FROM {view}
+            ORDER BY random()
+            LIMIT {limit};
+        """
         return list(map(func, self.query(sql_str)))
-
-    def g1_sample(self, limit: int) -> Track_List:
-        sql_str = f"""
-            SELECT uri
-            FROM {self.g1_name}
-            ORDER BY random()
-            LIMIT {limit};
-        """
-        return self._sample(sql_str)
-
-    def g2_sample(self, limit: int) -> Track_List:
-        sql_str = f"""
-            SELECT uri
-            FROM {self.g2_name}
-            ORDER BY random()
-            LIMIT {limit};
-        """
-        return self._sample(sql_str)
-
-    def g3_sample(self, limit: int) -> Track_List:
-        sql_str = f"""
-            SELECT uri
-            FROM {self.g3_name}
-            ORDER BY random()
-            LIMIT {limit};
-        """
-        return self._sample(sql_str)
-
-    def g4_sample(self, limit: int) -> Track_List:
-        sql_str = f"""
-            SELECT uri
-            FROM {self.g4_name}
-            ORDER BY random()
-            LIMIT {limit};
-        """
-        return self._sample(sql_str)
 
     def get_sample(self, limit: int) -> Track_List:
         result_all: Track_List = []
-        sample_limit = int(limit / 4)
-        result1 = self.g1_sample(sample_limit)
-        result2 = self.g2_sample(sample_limit)
-        result3 = self.g3_sample(sample_limit)
-        result4 = self.g4_sample(sample_limit)
+        result1 = self.sample(self.g1_name, int(limit * 0.3))
+        result2 = self.sample(self.g2_name, int(limit * 0.3))
+        result3 = self.sample(self.g3_name, int(limit * 0.25))
+        result4 = self.sample(self.g4_name, int(limit * 0.15))
         result_all.extend(result1)
         result_all.extend(result2)
         result_all.extend(result3)

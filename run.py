@@ -129,14 +129,14 @@ def home():
     return render_template("layout.jinja", **content)
 
 
-def launch_server(server_name: str, server_port: int, secret: str):
+def launch_server(server_name: str, server_port: int, secret: str) -> None:
     app.secret_key = secret
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["PERMANENT_SESSION_LIFETIME"] = 300
     app.run(port=server_port, host=server_name, debug=True)
 
 
-def main():
+def main() -> None:
     config = load_config(ROOT_DIR)
     db_file = config["database"]["filename"]
     db_path = path.join(ROOT_DIR, db_file)

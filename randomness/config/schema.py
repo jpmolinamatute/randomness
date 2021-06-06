@@ -1,7 +1,7 @@
 DEFAULT_CONFIG_NAME = "config.yaml"
 # DEFAULT_DB = ":memory:"
 DEFAULT_DB = "sqlite.db"
-PLAYLIST_SIZE = 400
+PLAYLIST_SIZE = 1000
 PLAYLIST_NAME = "A Random randomness"
 DEFAULT_WEB_PORT = 5842
 DEFAULT_WEB_HOST = "localhost"
