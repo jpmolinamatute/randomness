@@ -182,11 +182,11 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
     if playlist_id:
         tracks_url = f"{BASE_URL}/v1/playlists/{playlist_id}/tracks"
         next_url = f"{tracks_url}?fields=next,items(track.uri)&limit=100"
-        logging.info(f"Getting tracks from playlist '{playlist_id}'")
+        logging.info(f"Getting old tracks from playlist '{playlist_id}'")
     else:
         next_url = f"{BASE_URL}/v1/me/tracks?limit=50"
         logging.info("Getting new load of tracks from Spotify Library...")
-    total = 0
+
     while next_url:
         try:
             response = session.get(next_url, headers=headers)
@@ -199,11 +199,10 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
                 response_dict = response.json()
                 next_url = response_dict["next"]
                 for item in response_dict["items"]:
-                    total += 1
                     track_list.append(item["track"]["uri"])
             else:
                 next_url = ""
-    logging.info(f"tracks count is {total}")
+    logging.info(f"{len(track_list)} tracks in playlist '{playlist_id}'")
     return track_list
 
 
@@ -273,6 +272,11 @@ def generate_playlist(filepath: str) -> None:
         playlist_id = create_playlist(session, playlist_name)
     old_track_list = get_tracks(session, playlist_id)
     new_track_list = lib.get_sample(playlist_size)
-    save_tracks_to_playlist(session, playlist_id, new_track_list)
-    save_tracks_to_playlist(session, playlist_id, new_track_list)
-    del_tracks_from_playlist(session, playlist_id, old_track_list)
+    # this two lines will remove duplicate tracks in both track_list
+    # the idea is not to add/remove tracks that were already in the old playlist and
+    # also in the new one
+    old_wo_new_track = [track for track in old_track_list if track not in new_track_list]
+    new_wo_old_track = [track for track in new_track_list if track not in old_track_list]
+
+    del_tracks_from_playlist(session, playlist_id, old_wo_new_track)
+    save_tracks_to_playlist(session, playlist_id, new_wo_old_track)
