@@ -2,6 +2,7 @@ from os import path
 import sqlite3
 import logging
 import uuid
+from typing import Sequence
 from .config import load_config
 from .common import isWritable
 
@@ -74,33 +75,26 @@ class DB:
         cursor.close()
         return lastrowid
 
-    def insert_many(self, content: list, columns: tuple) -> None:
-        marks = row_to_marks(columns)
-        sql_str = f"""
-            INSERT INTO {self.table} {columns}
-            VALUES ({marks});
-        """
+    def execute(self, sql_str: str, values: tuple = ()) -> list:
         cursor = self.conn.cursor()
-        self.logger.debug(f"Executing {sql_str}")
-        cursor.executemany(sql_str, content)
-        self.conn.commit()
-        cursor.close()
-
-    def execute(self, sql_str: str, values: tuple = ()) -> None:
-        cursor = self.conn.cursor()
-        self.logger.debug(f"Executing\n{sql_str}")
-        cursor.execute(sql_str, values)
-        self.conn.commit()
-        cursor.close()
-
-    def query(self, sql_str: str, values: tuple = ()) -> list:
-        cursor = self.conn.cursor()
-        self.logger.debug(f"Executing {sql_str}")
+        self.logger.debug(f"Executing{sql_str}")
         cursor.execute(sql_str, values)
         self.conn.commit()
         rows = cursor.fetchall()
+        if cursor.rowcount >= 0:
+            self.logger.info(f"{cursor.rowcount} rows modified")
+        elif rows:
+            self.logger.info(f"{len(rows)} rows retrieved")
         cursor.close()
         return rows
+
+    def executemany(self, sql_str: str, values: Sequence[tuple]) -> None:
+        cursor = self.conn.cursor()
+        self.logger.debug(f"Executing{sql_str}")
+        cursor.executemany(sql_str, values)
+        self.conn.commit()
+        self.logger.info(f"{cursor.rowcount} rows modified")
+        cursor.close()
 
     def close(self) -> None:
         self.logger.debug(f"Closing connection to {self.db_file_name}")
@@ -117,7 +111,7 @@ class DB:
         """
         valid = False
 
-        row = self.query(sql, (oauth_id,))
+        row = self.execute(sql, (oauth_id,))
 
         if row:
             self.row_id = oauth_id

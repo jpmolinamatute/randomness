@@ -151,7 +151,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     exit_status = 0
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     logging.info("I just started")
     try:
         main()

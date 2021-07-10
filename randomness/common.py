@@ -10,7 +10,7 @@ TOKEN_URL = "https://accounts.spotify.com/api/token"
 PLAYLIST_URL = f"{BASE_URL}/v1/me/playlists"
 Track_List = List[Text]
 Break_Track_list = List[Track_List]
-
+Music_Table = list[tuple[str, str, str, float, str, str, str, str]]
 
 class SpotifyToken(TypedDict):
     access_token: Text

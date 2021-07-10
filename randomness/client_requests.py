@@ -15,6 +15,7 @@ from .common import (
     TOKEN_URL,
     PLAYLIST_URL,
     SpotifyToken,
+    Music_Table
 )
 from .client_aouth import OAuth
 from .db_library import Library
@@ -206,12 +207,12 @@ def get_tracks(session, playlist_id: str = "") -> Track_List:
     return track_list
 
 
-def get_library(session) -> list:
+def get_library(session) -> Music_Table:
     headers = {"Accept": "application/json"}
     next_url = f"{BASE_URL}/v1/me/tracks?limit=50"
     logging.info("Getting library from Spotify Library...")
     total = 0
-    track_list = []
+    track_list:Music_Table = []
     while next_url:
         try:
             response = session.get(next_url, headers=headers)
@@ -243,27 +244,17 @@ def get_library(session) -> list:
     return track_list
 
 
-def reset_library(lib, session) -> None:
-    lib.reset_table()
+def reset_library(lib: Library, session) -> None:
+    # lib.reset_table()
     whole_library = get_library(session)
-    columns = (
-        "uri",
-        "name",
-        "added_at",
-        "duration_ms",
-        "album_uri",
-        "album_name",
-        "artists_uri",
-        "artists_name",
-    )
-    lib.insert_many(whole_library, columns)
-
+    lib.write_table(whole_library)
+    lib.clear_removed_tracks(whole_library)
 
 def generate_playlist(filepath: str) -> None:
     logging.info("Analysis is starting")
     lib = Library(filepath)
     session = get_session(filepath)
-    reset_library(lib, session)
+    # reset_library(lib, session)
     config = load_config(filepath)
     playlist_name = config["playlist"]["name"]
     playlist_size = config["playlist"]["size"]
@@ -271,12 +262,14 @@ def generate_playlist(filepath: str) -> None:
     if not playlist_id:
         playlist_id = create_playlist(session, playlist_name)
     old_track_list = get_tracks(session, playlist_id)
-    new_track_list = lib.get_sample(playlist_size)
+    new_track_list = lib.get_sample(playlist_size, old_track_list)
     # this two lines will remove duplicate tracks in both track_list
     # the idea is not to add/remove tracks that were already in the old playlist and
     # also in the new one
-    old_wo_new_track = [track for track in old_track_list if track not in new_track_list]
-    new_wo_old_track = [track for track in new_track_list if track not in old_track_list]
+    # old_wo_new_track = [track for track in old_track_list if track not in new_track_list]
+    # new_wo_old_track = [track for track in new_track_list if track not in old_track_list]
 
-    del_tracks_from_playlist(session, playlist_id, old_wo_new_track)
-    save_tracks_to_playlist(session, playlist_id, new_wo_old_track)
+
+    # lib.write_history(old_track_list)
+    del_tracks_from_playlist(session, playlist_id, old_track_list)
+    save_tracks_to_playlist(session, playlist_id, new_track_list)

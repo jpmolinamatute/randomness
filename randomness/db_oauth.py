@@ -38,5 +38,5 @@ class OAuth(DB):
             FROM {self.table}
             WHERE id = ?;
         """
-        row = self.query(sql, (self.row_id,))
+        row = self.execute(sql, (self.row_id,))
         return row[0][0]
