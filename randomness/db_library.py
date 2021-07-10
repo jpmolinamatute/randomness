@@ -120,7 +120,6 @@ class Library(DB):
             WHERE uri NOT IN ({not_id});
         """
         self.logger.info("Clearing removed tracks")
-        self.logger.debug(sql_track_list)
         self.execute(sql_str, tuple(sql_track_list))
 
     def write_table(self, track_list: Music_Table) -> None:

@@ -254,7 +254,7 @@ def generate_playlist(filepath: str) -> None:
     logging.info("Analysis is starting")
     lib = Library(filepath)
     session = get_session(filepath)
-    # reset_library(lib, session)
+    reset_library(lib, session)
     config = load_config(filepath)
     playlist_name = config["playlist"]["name"]
     playlist_size = config["playlist"]["size"]
