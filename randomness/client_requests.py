@@ -250,11 +250,22 @@ def reset_library(lib: Library, session) -> None:
     lib.write_table(whole_library)
     lib.clear_removed_tracks(whole_library)
 
+def verify_repeticion(old_track_list:Track_List, new_track_list:Track_List) -> bool:
+    old_track_list.sort()
+    new_track_list.sort()
+    valid = True
+    for old in old_track_list:
+        for new in new_track_list:
+            if old == new:
+                valid = False
+                logging.info(old.split(":")[2])
+    return valid
+
 def generate_playlist(filepath: str) -> None:
     logging.info("Analysis is starting")
     lib = Library(filepath)
     session = get_session(filepath)
-    reset_library(lib, session)
+    # reset_library(lib, session)
     config = load_config(filepath)
     playlist_name = config["playlist"]["name"]
     playlist_size = config["playlist"]["size"]
@@ -263,13 +274,11 @@ def generate_playlist(filepath: str) -> None:
         playlist_id = create_playlist(session, playlist_name)
     old_track_list = get_tracks(session, playlist_id)
     new_track_list = lib.get_sample(playlist_size, old_track_list)
-    # this two lines will remove duplicate tracks in both track_list
-    # the idea is not to add/remove tracks that were already in the old playlist and
-    # also in the new one
-    # old_wo_new_track = [track for track in old_track_list if track not in new_track_list]
-    # new_wo_old_track = [track for track in new_track_list if track not in old_track_list]
 
-
-    # lib.write_history(old_track_list)
-    del_tracks_from_playlist(session, playlist_id, old_track_list)
-    save_tracks_to_playlist(session, playlist_id, new_track_list)
+    valid = verify_repeticion(old_track_list, new_track_list)
+    if valid:
+        # lib.write_history(old_track_list)
+        del_tracks_from_playlist(session, playlist_id, old_track_list)
+        save_tracks_to_playlist(session, playlist_id, new_track_list)
+    else:
+        logging.error("validation failed")

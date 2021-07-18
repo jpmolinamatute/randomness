@@ -77,12 +77,19 @@ class DB:
 
     def execute(self, sql_str: str, values: tuple = ()) -> list:
         cursor = self.conn.cursor()
-        self.logger.debug(f"Executing{sql_str}")
+        self.logger.debug(f"Executing:{sql_str}")
+        self.logger.debug(values)
         cursor.execute(sql_str, values)
         self.conn.commit()
         rows = cursor.fetchall()
         if cursor.rowcount >= 0:
-            self.logger.info(f"{cursor.rowcount} rows modified")
+            action = sql_str.split(" ")[0]
+            if action == "INSERT":
+                self.logger.info(f"{cursor.rowcount} rows were inserted")
+            elif action == "DELETE":
+                self.logger.info(f"{cursor.rowcount} rows were deleted")
+            else:
+                self.logger.info(f"{cursor.rowcount} rows modified")
         elif rows:
             self.logger.info(f"{len(rows)} rows retrieved")
         cursor.close()

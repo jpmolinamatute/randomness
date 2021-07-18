@@ -1,40 +1,42 @@
 from typing import TypedDict, Optional
+from copy import deepcopy
 from .db import DB
 from .common import Track_List, Music_Table
 
-Mark = TypedDict(
-    "Mark",
-    {
-        "min-mark": int,
-        "weight": float,
-        "max-mark": Optional[int]
-    },
-    total=False,
-)
+class Mark(TypedDict, total=False):
+    min_mark: int
+    weight: float
+    index: int
+    max_mark: Optional[int]
+
 
 class Library(DB):
     def __init__(self, filepath: str):
         super().__init__("Library", "library", filepath)
+        mark0:Mark = {
+            "index": 0,
+            "min_mark": 0,
+            "max_mark": 4,
+            "weight": 0.3
+        }
         mark1:Mark = {
-            "min-mark": 0,
-            "max-mark": 2,
+            "index": 1,
+            "min_mark": mark0["max_mark"] or 0,
+            "max_mark": 11,
             "weight": 0.3
         }
         mark2:Mark = {
-            "min-mark": mark1["max-mark"] or 0,
-            "max-mark": 7,
-            "weight": 0.3
-        }
-        mark3:Mark = {
-            "min-mark": mark2["max-mark"] or 0,
-            "max-mark": 24,
+            "index": 2,
+            "min_mark": mark1["max_mark"] or 0,
+            "max_mark": 24,
             "weight": 0.25
         }
-        mark4:Mark = {
-            "min-mark": mark3["max-mark"] or 0,
+        mark3:Mark = {
+            "index": 3,
+            "min_mark": mark2["max_mark"] or 0,
             "weight": 0.15
         }
-        self.mark_list: list[Mark] = [mark1, mark2, mark3, mark4]
+        self.mark_list: list[Mark] = [mark0, mark1, mark2, mark3]
         self.history_table = "history"
         self.create_table()
 
@@ -66,36 +68,41 @@ class Library(DB):
 
     def sample(self, limit:int, mark:Mark, old_track_list: Track_List) -> Track_List:
         func = lambda row: row[0]
-        min_point = mark["min-mark"]
-        max_point = mark["max-mark"] if "max-mark" in mark else None
+        min_point = mark["min_mark"]
+        max_point = mark["max_mark"] if "max_mark" in mark else None
         sub_limit = int(mark["weight"] * limit)
         not_id = ""
-        for _ in old_track_list:
+        values = deepcopy(old_track_list)
+        for _ in values:
             not_id += "?, "
         not_id = not_id[:-2]
         sql_str = f"""
             SELECT uri
             FROM {self.table}
-            WHERE artists_uri IN (
+            WHERE uri NOT IN ({not_id}) 
+            AND artists_uri IN (
                 SELECT artists_uri
                 FROM {self.table}
-                WHERE uri NOT IN ({not_id})
                 GROUP BY artists_uri
         """
-
+        values.append(min_point)
         if max_point:
-            sql_str += "HAVING (COUNT(artists_uri) > ? AND COUNT(artists_uri) <= ?)"
-            values = old_track_list + [min_point, max_point, sub_limit]
+            sql_str += "        HAVING (COUNT(artists_uri) > ? AND COUNT(artists_uri) <= ?)"
+            values.append(max_point)
         else:
-            sql_str += "HAVING COUNT(artists_uri) > ?"
-            values = old_track_list  + [min_point, sub_limit]
+            sql_str += "        HAVING COUNT(artists_uri) > ?"
 
+        values.append(sub_limit)
         sql_str += """
             )
             ORDER BY random()
             LIMIT ?;
         """
+
         songs = self.execute(sql_str, tuple(values))
+        len_song = len(songs)
+        if sub_limit != len_song:
+            self.logger.warning(f"Mark {mark['index']} limit was {sub_limit} we got {len_song}")
         return list(map(func, songs))
 
     def write_history(self, old_track_list: Track_List) -> None:

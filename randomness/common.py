@@ -1,5 +1,5 @@
 import base64
-from typing import List, Text, TypedDict
+from typing import TypedDict
 import tempfile
 import errno
 
@@ -8,13 +8,13 @@ BASE_URL = "https://api.spotify.com"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 
 PLAYLIST_URL = f"{BASE_URL}/v1/me/playlists"
-Track_List = List[Text]
-Break_Track_list = List[Track_List]
+Track_List = list[str]
+Break_Track_list = list[Track_List]
 Music_Table = list[tuple[str, str, str, float, str, str, str, str]]
 
 class SpotifyToken(TypedDict):
-    access_token: Text
-    refresh_token: Text
+    access_token: str
+    refresh_token: str
     expires_in: int
 
 
