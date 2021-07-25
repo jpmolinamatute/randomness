@@ -1,5 +1,5 @@
 import base64
-from typing import TypedDict
+from typing import TypedDict, Optional
 import tempfile
 import errno
 
@@ -16,6 +16,14 @@ class SpotifyToken(TypedDict):
     access_token: str
     refresh_token: str
     expires_in: int
+
+# Mark_Key = Literal["min_mark", "weight", "order", "max_mark"]
+
+class Mark(TypedDict, total=False):
+    min_mark: int
+    weight: float
+    order: int
+    max_mark: Optional[int]
 
 
 def str_to_base64(line: str) -> str:

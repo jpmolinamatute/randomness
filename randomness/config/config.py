@@ -1,14 +1,13 @@
 from os import path
+from copy import deepcopy
+import random
+import string
+import logging
 import yaml
 from jsonschema import validate
 from .schema import (
     CONFIG_SCHEMA,
     DEFAULT_CONFIG_NAME,
-    PLAYLIST_NAME,
-    PLAYLIST_SIZE,
-    DEFAULT_DB,
-    DEFAULT_WEB_PORT,
-    DEFAULT_WEB_HOST,
     DEFAULT_CONFIG,
 )
 from ..common import isWritable
@@ -17,20 +16,19 @@ from ..common import isWritable
 def create_config(filepath: str) -> None:
     if isWritable(filepath):
         complete_path = path.join(filepath, DEFAULT_CONFIG_NAME)
-        data = {
-            "playlist": {"name": PLAYLIST_NAME, "size": PLAYLIST_SIZE},
-            "user": {"id": "CHANGE ME!", "username": ""},
-            "server": {"port": DEFAULT_WEB_PORT, "hostname": DEFAULT_WEB_HOST},
-            "credentials": {
-                "spotipy_client_id": "CHANGE ME!",
-                "spotipy_client_secret": "CHANGE ME!",
-            },
-            "security": {"secret": "CHANGE ME!"},
-            "database": {"filename": DEFAULT_DB},
+        chars = string.ascii_letters + string.digits + string.punctuation
+        data = deepcopy(DEFAULT_CONFIG)
+        data["user"] = {"id": "CHANGE ME!"}
+        data["credentials"] = {
+            "spotipy_client_id": "CHANGE ME!",
+            "spotipy_client_secret": "CHANGE ME!",
         }
-
+        data["security"] = {"secret": "".join(random.choice(chars) for _ in range(30))}
         with open(complete_path, "w") as f:
             yaml.dump(data, f, sort_keys=True)
+        msg = f"{complete_path} file has been created. "
+        msg += "Please change the values according to your needs"
+        logging.info(msg)
     else:
         msg = f"Settings path '{filepath}' is not writable "
         msg += "or doesn't exists. "

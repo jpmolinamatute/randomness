@@ -263,10 +263,10 @@ def verify_repeticion(old_track_list:Track_List, new_track_list:Track_List) -> b
 
 def generate_playlist(filepath: str) -> None:
     logging.info("Analysis is starting")
-    lib = Library(filepath)
     session = get_session(filepath)
-    # reset_library(lib, session)
     config = load_config(filepath)
+    lib = Library(filepath, config["generator"])
+    reset_library(lib, session)
     playlist_name = config["playlist"]["name"]
     playlist_size = config["playlist"]["size"]
     playlist_id = get_playlist(session, playlist_name)
@@ -280,5 +280,6 @@ def generate_playlist(filepath: str) -> None:
         # lib.write_history(old_track_list)
         del_tracks_from_playlist(session, playlist_id, old_track_list)
         save_tracks_to_playlist(session, playlist_id, new_track_list)
+        logging.info("The application has ended successfully")
     else:
         logging.error("validation failed")

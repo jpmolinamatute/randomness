@@ -52,9 +52,9 @@ def process_callback(code: str, respose_state: str, session_state: str, verifier
             msg += f"we had '{session_state}' "
             msg += f"and we got '{respose_state}'"
             raise Exception(msg)
-    except Exception as e:
+    except Exception as err:
         content["template"] = "failed.jinja"
-        content["reason"] = str(e)
+        content["reason"] = str(err)
         content["home_link"] = f"http://{server_name}:{server_port}"
     return content
 
@@ -65,8 +65,8 @@ def shutdown():
         kill = request.environ.get("werkzeug.server.shutdown")
         kill()
         logging.info("server was successfuly killed")
-    except Exception as e:
-        logging.exception(e)
+    except Exception as err:
+        logging.exception(err)
     finally:
         logging.info("Calling generate_playlist()")
         generate_playlist(ROOT_DIR)

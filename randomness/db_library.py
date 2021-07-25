@@ -1,44 +1,37 @@
-from typing import TypedDict, Optional
 from copy import deepcopy
 from .db import DB
-from .common import Track_List, Music_Table
+from .common import Track_List, Music_Table, Mark
 
-class Mark(TypedDict, total=False):
-    min_mark: int
-    weight: float
-    index: int
-    max_mark: Optional[int]
 
+def is_valid_mark_order(mark: Mark)-> bool:
+    return "order" in mark and isinstance(mark["order"], int) and mark["order"] >= 0
+
+def is_valid_mark_min(mark: Mark)-> bool:
+    return "min_mark" in mark and isinstance(mark["min_mark"], int) and mark["min_mark"] >= 1
+
+def is_valid_mark_weight(mark: Mark)-> bool:
+    return "weight" in mark and isinstance(mark["weight"], float) and mark["weight"] > 0.0
 
 class Library(DB):
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: str, mark_list: list[Mark]):
         super().__init__("Library", "library", filepath)
-        mark0:Mark = {
-            "index": 0,
-            "min_mark": 0,
-            "max_mark": 4,
-            "weight": 0.3
-        }
-        mark1:Mark = {
-            "index": 1,
-            "min_mark": mark0["max_mark"] or 0,
-            "max_mark": 11,
-            "weight": 0.3
-        }
-        mark2:Mark = {
-            "index": 2,
-            "min_mark": mark1["max_mark"] or 0,
-            "max_mark": 24,
-            "weight": 0.25
-        }
-        mark3:Mark = {
-            "index": 3,
-            "min_mark": mark2["max_mark"] or 0,
-            "weight": 0.15
-        }
-        self.mark_list: list[Mark] = [mark0, mark1, mark2, mark3]
+        self.add_marks(mark_list)
         self.history_table = "history"
         self.create_table()
+
+    def add_marks(self, mark_list: list[Mark]) -> None:
+        valid = False
+        weight_total = 0.0
+        for mark in mark_list:
+            if is_valid_mark_order(mark) and is_valid_mark_min(mark) and is_valid_mark_weight(mark):
+                valid = True
+                weight_total += mark["weight"]
+
+        if valid and weight_total == 1.0:
+            self.mark_list = mark_list
+        else:
+            self.logger.warning("WARNING: Generator list is empty or invalid")
+            self.mark_list = []
 
     def reset_table(self) -> None:
         self.logger.debug(f"Reseting table {self.table}")
@@ -87,10 +80,10 @@ class Library(DB):
         """
         values.append(min_point)
         if max_point:
-            sql_str += "        HAVING (COUNT(artists_uri) > ? AND COUNT(artists_uri) <= ?)"
+            sql_str += "        HAVING (COUNT(artists_uri) >= ? AND COUNT(artists_uri) < ?)"
             values.append(max_point)
         else:
-            sql_str += "        HAVING COUNT(artists_uri) > ?"
+            sql_str += "        HAVING COUNT(artists_uri) >= ?"
 
         values.append(sub_limit)
         sql_str += """
@@ -102,7 +95,7 @@ class Library(DB):
         songs = self.execute(sql_str, tuple(values))
         len_song = len(songs)
         if sub_limit != len_song:
-            self.logger.warning(f"Mark {mark['index']} limit was {sub_limit} we got {len_song}")
+            self.logger.warning(f"Mark {mark['order']} limit was {sub_limit} we got {len_song}")
         return list(map(func, songs))
 
     def write_history(self, old_track_list: Track_List) -> None:
