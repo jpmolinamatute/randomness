@@ -16,7 +16,6 @@ from randomness import (
 
 # @TODO: Improve user expierence in html pages
 # @TODO: improve error handling
-# @TODO: update README.md file
 # @TODO: create systemd service file
 
 

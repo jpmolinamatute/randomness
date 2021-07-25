@@ -3,14 +3,17 @@ from .db import DB
 from .common import Track_List, Music_Table, Mark
 
 
-def is_valid_mark_order(mark: Mark)-> bool:
+def is_valid_mark_order(mark: Mark) -> bool:
     return "order" in mark and isinstance(mark["order"], int) and mark["order"] >= 0
 
-def is_valid_mark_min(mark: Mark)-> bool:
+
+def is_valid_mark_min(mark: Mark) -> bool:
     return "min_mark" in mark and isinstance(mark["min_mark"], int) and mark["min_mark"] >= 1
 
-def is_valid_mark_weight(mark: Mark)-> bool:
+
+def is_valid_mark_weight(mark: Mark) -> bool:
     return "weight" in mark and isinstance(mark["weight"], float) and mark["weight"] > 0.0
+
 
 class Library(DB):
     def __init__(self, filepath: str, mark_list: list[Mark]):
@@ -39,7 +42,8 @@ class Library(DB):
         self.create_table()
 
     def create_table(self) -> None:
-        self.execute(f"""
+        self.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS {self.table}(
                 uri TEXT NOT NULL PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -50,16 +54,19 @@ class Library(DB):
                 artists_uri TEXT NOT NULL,
                 artists_name TEXT NOT NULL
             );
-        """)
-        self.execute(f"""
+        """
+        )
+        self.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS {self.history_table}(
                 uri TEXT NOT NULL PRIMARY KEY,
                 count INTEGER DEFAULT 1,
                 FOREIGN KEY(uri) REFERENCES {self.table}(uri)
             );
-        """)
+        """
+        )
 
-    def sample(self, limit:int, mark:Mark, old_track_list: Track_List) -> Track_List:
+    def sample(self, limit: int, mark: Mark, old_track_list: Track_List) -> Track_List:
         func = lambda row: row[0]
         min_point = mark["min_mark"]
         max_point = mark["max_mark"] if "max_mark" in mark else None
@@ -91,7 +98,7 @@ class Library(DB):
             ORDER BY random()
             LIMIT ?;
         """
-
+        self.logger.info(f"Processing mark {mark['order']}:")
         songs = self.execute(sql_str, tuple(values))
         len_song = len(songs)
         if sub_limit != len_song:
@@ -103,13 +110,13 @@ class Library(DB):
             INSERT INTO {self.history_table}(uri) VALUES(?)
             ON CONFLICT(uri) DO UPDATE SET count=count+1;
         """
-        sql_track_list:list[tuple] = [(l,) for l in old_track_list]
+        sql_track_list: list[tuple] = [(l,) for l in old_track_list]
         self.logger.info("Inserting previous tracks played")
         self.executemany(sql_str, sql_track_list)
 
-    def clear_removed_tracks(self, track_list: Music_Table) ->None:
+    def clear_removed_tracks(self, track_list: Music_Table) -> None:
         not_id = ""
-        sql_track_list:list[str] = []
+        sql_track_list: list[str] = []
         for t in track_list:
             not_id += "?, "
             sql_track_list.append(t[0])
