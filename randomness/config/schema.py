@@ -1,3 +1,6 @@
+import random
+import string
+
 DEFAULT_CONFIG_NAME = "config.yaml"
 # DEFAULT_DB = ":memory:"
 DEFAULT_DB = "sqlite.db"
@@ -75,19 +78,22 @@ CONFIG_SCHEMA = {
                 },
                 "max_mark": {
                     "type": "number",
-                    "minimum": 1,
+                    "exclusiveMinimum": 1,
                 },
                 "weight": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
             },
             "required": ["order", "min_mark", "weight"],
         },
     },
-    "required": ["credentials", "security", "user"],
+    "required": ["credentials", "user"],
 }
+
+chars = string.ascii_letters + string.digits + string.punctuation
 
 DEFAULT_CONFIG = {
     "playlist": {"name": PLAYLIST_NAME, "size": PLAYLIST_SIZE},
     "server": {"port": DEFAULT_WEB_PORT, "hostname": DEFAULT_WEB_HOST},
     "database": {"filename": DEFAULT_DB},
+    "security": {"secret": "".join(random.choice(chars) for _ in range(30))},
     "generator": [{"order": 0, "min_mark": 1, "weight": 1.0}],
 }

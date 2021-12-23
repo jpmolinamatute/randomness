@@ -15,7 +15,7 @@ from .common import (
     TOKEN_URL,
     PLAYLIST_URL,
     SpotifyToken,
-    Music_Table
+    Music_Table,
 )
 from .client_aouth import OAuth
 from .db_library import Library
@@ -212,7 +212,7 @@ def get_library(session) -> Music_Table:
     next_url = f"{BASE_URL}/v1/me/tracks?limit=50"
     logging.info("Getting library from Spotify Library...")
     total = 0
-    track_list:Music_Table = []
+    track_list: Music_Table = []
     while next_url:
         try:
             response = session.get(next_url, headers=headers)
@@ -250,7 +250,8 @@ def reset_library(lib: Library, session) -> None:
     lib.write_table(whole_library)
     lib.clear_removed_tracks(whole_library)
 
-def verify_repeticion(old_track_list:Track_List, new_track_list:Track_List) -> bool:
+
+def verify_repeticion(old_track_list: Track_List, new_track_list: Track_List) -> bool:
     old_track_list.sort()
     new_track_list.sort()
     valid = True
@@ -260,6 +261,7 @@ def verify_repeticion(old_track_list:Track_List, new_track_list:Track_List) -> b
                 valid = False
                 logging.info(old.split(":")[2])
     return valid
+
 
 def generate_playlist(filepath: str) -> None:
     logging.info("Analysis is starting")
@@ -283,3 +285,4 @@ def generate_playlist(filepath: str) -> None:
         logging.info("The application has ended successfully")
     else:
         logging.error("validation failed")
+    lib.close()

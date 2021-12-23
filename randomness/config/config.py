@@ -1,7 +1,5 @@
 from os import path
 from copy import deepcopy
-import random
-import string
 import logging
 import yaml
 from jsonschema import validate
@@ -14,16 +12,15 @@ from ..common import isWritable
 
 
 def create_config(filepath: str) -> None:
-    if isWritable(filepath):
-        complete_path = path.join(filepath, DEFAULT_CONFIG_NAME)
-        chars = string.ascii_letters + string.digits + string.punctuation
+    complete_path = path.join(filepath, DEFAULT_CONFIG_NAME)
+    if isWritable(filepath) and not path.isfile(complete_path):
         data = deepcopy(DEFAULT_CONFIG)
         data["user"] = {"id": "CHANGE ME!"}
         data["credentials"] = {
             "spotipy_client_id": "CHANGE ME!",
             "spotipy_client_secret": "CHANGE ME!",
         }
-        data["security"] = {"secret": "".join(random.choice(chars) for _ in range(30))}
+
         with open(complete_path, "w") as f:
             yaml.dump(data, f, sort_keys=True)
         msg = f"{complete_path} file has been created. "
