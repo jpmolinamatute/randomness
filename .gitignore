@@ -6,3 +6,5 @@ config.yaml
 **/deleteme/
 **/__pycache__/
 **/*.db
+src/logs/*
+!src/logs/.gitkeep
