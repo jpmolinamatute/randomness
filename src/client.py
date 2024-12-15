@@ -1,14 +1,12 @@
 from os import environ
 from pathlib import Path
-from typing import Any
 
 import requests
 from bson import encode
 from bson.raw_bson import RawBSONDocument
-from dotenv import load_dotenv
-from pymongo import MongoClient
 
 from src.auth import SpotifyAuth
+from src.db_client import DBClient
 from src.logger import Logger
 from src.spotify_types import LikedTracksResponse, Track
 
@@ -17,22 +15,15 @@ TIMEOUT = 15
 
 
 class SpotifyClient:
-    def __init__(self, auth: SpotifyAuth):
-        load_dotenv()
+    def __init__(self, auth: SpotifyAuth, my_mongo: DBClient) -> None:
         self.auth = auth
         self.logger = Logger().get_logger()
         self.api_url = "https://api.spotify.com/v1"
-        mongo_user = environ["MONGO_INITDB_ROOT_USERNAME"]
-        mongo_password = environ["MONGO_INITDB_ROOT_PASSWORD"]
-        mongo_db_name = environ["MONGO_INITDB_DATABASE"]
-        mongo_collection_name = environ["MONGO_COLLECTION_NAME"]
-        mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017"
-        self.mongo_client: MongoClient[dict[str, Any]] = MongoClient(mongo_uri)
-        self.mongo_db = self.mongo_client[mongo_db_name]
-        self.mongo_tracks_collection = self.mongo_db[mongo_collection_name]
+
+        self.mongo_tracks_collection = my_mongo.get_tracks_collection()
+        self.mongo_playlist_collection = my_mongo.get_playlist_collection()
         self.filename = Path(__name__).parent.joinpath("liked_tracks.csv")
         self.spotify_playlist_id = environ["SPOTIFY_PLAYLIST_ID"]
-        self.mongo_playlist_collection = self.mongo_db["playlist"]
 
     def _get_headers(self) -> dict[str, str]:
         access_token = self.auth.get_valid_access_token()

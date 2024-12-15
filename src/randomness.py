@@ -1,12 +1,10 @@
 import random
 from datetime import datetime, timezone
-from os import environ
 from typing import Any, Literal
 
 from bson import ObjectId
-from dotenv import load_dotenv
-from pymongo import MongoClient
 
+from src.db_client import DBClient
 from src.logger import Logger
 
 
@@ -14,18 +12,10 @@ randomness_types = Literal["track", "artist"]
 
 
 class Randomness:
-    def __init__(self) -> None:
-        load_dotenv()
+    def __init__(self, my_mongo: DBClient) -> None:
         self.logger = Logger().get_logger()
-        mongo_user = environ["MONGO_INITDB_ROOT_USERNAME"]
-        mongo_password = environ["MONGO_INITDB_ROOT_PASSWORD"]
-        mongo_db_name = environ["MONGO_INITDB_DATABASE"]
-        mongo_collection_name = environ["MONGO_COLLECTION_NAME"]
-        mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017"
-        self.mongo_client: MongoClient[dict[str, Any]] = MongoClient(mongo_uri)
-        self.mongo_db = self.mongo_client[mongo_db_name]
-        self.mongo_tracks_collection = self.mongo_db[mongo_collection_name]
-        self.mongo_playlist_collection = self.mongo_db["playlist"]
+        self.mongo_tracks_collection = my_mongo.get_tracks_collection()
+        self.mongo_playlist_collection = my_mongo.get_playlist_collection()
         self.randomness_percentage = 0.25
 
     def _randomize(self, whole_sample: list[str]) -> list[str]:
