@@ -16,6 +16,7 @@ def main() -> None:
     # print(randomness.get_random_item("artist", 5))
     sp_client.delete_playlist_content()
     sp_client.generate_content()
+    my_mongo.close()
 
 
 if __name__ == "__main__":

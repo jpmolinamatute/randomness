@@ -33,3 +33,6 @@ class DB:
 
     def get_playlist_collection(self) -> Collection[COLL_TYPE]:
         return self.mongo_db["playlist"]
+
+    def close(self) -> None:
+        self.mongo_client.close()

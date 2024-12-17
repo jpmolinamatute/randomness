@@ -1,7 +1,5 @@
 from pathlib import Path
 import shutil
-from time import sleep
-from tkinter import E
 
 from invoke import task, Context, Collection
 from dotenv import load_dotenv
@@ -116,8 +114,6 @@ def _up(ctx: Context, detach: bool = False) -> None:
         cmd += " --detach"
     _log_open("docker-compose up")
     ctx.run(cmd, pty=PTY, echo=ECHO)
-    if detach:
-        sleep(5)
 
 
 @task(name="up")
