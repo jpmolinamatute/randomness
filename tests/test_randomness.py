@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch, ANY
 
 import pytest
 
-from src.randomness import Randomness
+from src.spotify import Randomness
 
 
 @pytest.fixture

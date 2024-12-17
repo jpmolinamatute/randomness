@@ -15,7 +15,7 @@ pymongo = "^4.10.1"
 pydantic = "^2.10.3"
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.11.0"
+black = "^24.10.0"
 mypy = "^1.7.1"
 pylint = "^3.0.2"
 mypy-extensions = "^1.0.0"
@@ -24,6 +24,7 @@ typing-extensions = "^4.9.0"
 bpython = "^0.24"
 pytest = "^8.3.4"
 invoke = "^2.2.0"
+tk = "^0.1.0"
 
 
 [build-system]
@@ -337,7 +338,7 @@ min-public-methods = 2
 
 [tool.pylint.exceptions]
 # Exceptions that will emit a warning when caught.
-overgeneral-exceptions = ["BaseException"]
+overgeneral-exceptions = ["builtins.BaseException"]
 
 [tool.pylint.format]
 # Expected format of line ending, e.g. empty (any line ending), LF or CRLF.

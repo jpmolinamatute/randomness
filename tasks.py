@@ -1,5 +1,7 @@
 from pathlib import Path
 import shutil
+from time import sleep
+from tkinter import E
 
 from invoke import task, Context, Collection
 from dotenv import load_dotenv
@@ -18,6 +20,7 @@ ECHO = True
 
 
 ns = Collection()
+compose = Collection("compose")
 lint = Collection("lint")
 tests = Collection("tests")
 application = Collection("app")
@@ -49,7 +52,7 @@ def _run_black(ctx: Context, ignore_failures: bool = True) -> None:
 
 
 def _run_isort(ctx: Context, ignore_failures: bool = True) -> None:
-    cmd = f"isort --settings-path {PYPROJECT} {APP_ROOT} {TEST_ROOT}"
+    cmd = f"isort --settings-file {PYPROJECT} {APP_ROOT} {TEST_ROOT}"
     _log_open("isort")
     ctx.run(cmd, pty=PTY, echo=ECHO, warn=ignore_failures)
 
@@ -106,9 +109,59 @@ def pytest(ctx: Context) -> None:
 tests.add_task(pytest)
 
 
+def _up(ctx: Context, detach: bool = False) -> None:
+    compose_file = PROJECT_ROOT.joinpath("docker/docker-compose.yaml")
+    cmd = f"docker compose -f {compose_file} up"
+    if detach:
+        cmd += " --detach"
+    _log_open("docker-compose up")
+    ctx.run(cmd, pty=PTY, echo=ECHO)
+    if detach:
+        sleep(5)
+
+
+@task(name="up")
+def up(ctx: Context, detach: bool = False) -> None:
+    _up(ctx, detach)
+
+
+def _down(ctx: Context, remove_vol: bool = False) -> None:
+    compose_file = PROJECT_ROOT.joinpath("docker/docker-compose.yaml")
+
+    cmd = f"docker compose -f {compose_file} down --remove-orphans"
+    if remove_vol:
+        cmd += " --volumes"
+    _log_open("docker-compose down")
+    ctx.run(cmd, pty=PTY, echo=ECHO)
+
+
+@task(name="down")
+def down(ctx: Context, remove_vol: bool = False) -> None:
+    _down(ctx, remove_vol)
+
+
+@task(name="ps")
+def ps(ctx: Context) -> None:
+    compose_file = PROJECT_ROOT.joinpath("docker/docker-compose.yaml")
+    cmd = f"docker compose -f {compose_file} ps"
+    _log_open("docker-compose ps")
+    ctx.run(cmd, pty=PTY, echo=ECHO)
+
+
+compose.add_task(down)
+compose.add_task(up)
+compose.add_task(ps)
+
+
 @task(name="run")
-def run(_: Context) -> None:
-    main()
+def run(ctx: Context) -> None:
+    _up(ctx, True)
+    try:
+        main()
+    except Exception as e:
+        print(e)
+    finally:
+        _down(ctx)
 
 
 application.add_task(run)
@@ -116,3 +169,4 @@ application.add_task(run)
 ns.add_collection(lint)
 ns.add_collection(tests)
 ns.add_collection(application)
+ns.add_collection(compose)
