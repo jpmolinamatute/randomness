@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from src.spotify_types import LikedTracksResponse
+from src.spotify.types import LikedTracksResponse
 
 
 @pytest.fixture

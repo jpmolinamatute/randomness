@@ -8,7 +8,7 @@ from pymongo.collection import Collection
 COLL_TYPE = dict[str, Any]
 
 
-class DBClient:
+class DB:
     def __init__(self) -> None:
         mongo_user = environ["MONGO_INITDB_ROOT_USERNAME"]
         mongo_password = environ["MONGO_INITDB_ROOT_PASSWORD"]
@@ -20,8 +20,11 @@ class DBClient:
     def check_connection(self) -> bool:
         is_up = True
         try:
-            self.mongo_client.server_info()
+            info = self.mongo_client.server_info()
+            print(f"MongoDB version: {info["version"]}")
+            print(f"MongoDB connection status: {self.mongo_client.is_primary}")
         except Exception:
+            print("MongoDB is not available")
             is_up = False
         return is_up
 

@@ -5,17 +5,17 @@ import requests
 from bson import encode
 from bson.raw_bson import RawBSONDocument
 
-from src.auth import SpotifyAuth
-from src.db_client import DBClient
-from src.logger import Logger
-from src.spotify_types import LikedTracksResponse, Track
+from src.spotify.auth import Auth
+from src.spotify.db import DB
+from src.spotify.logger import Logger
+from src.spotify.types import LikedTracksResponse, Track
 
 
 TIMEOUT = 15
 
 
-class SpotifyClient:
-    def __init__(self, auth: SpotifyAuth, my_mongo: DBClient) -> None:
+class Client:
+    def __init__(self, auth: Auth, my_mongo: DB) -> None:
         self.auth = auth
         self.logger = Logger().get_logger()
         self.api_url = "https://api.spotify.com/v1"

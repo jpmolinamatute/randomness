@@ -4,15 +4,15 @@ from typing import Any, Literal
 
 from bson import ObjectId
 
-from src.db_client import DBClient
-from src.logger import Logger
+from src.spotify.db import DB
+from src.spotify.logger import Logger
 
 
 randomness_types = Literal["track", "artist"]
 
 
 class Randomness:
-    def __init__(self, my_mongo: DBClient) -> None:
+    def __init__(self, my_mongo: DB) -> None:
         self.logger = Logger().get_logger()
         self.mongo_tracks_collection = my_mongo.get_tracks_collection()
         self.mongo_playlist_collection = my_mongo.get_playlist_collection()
