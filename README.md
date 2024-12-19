@@ -1,98 +1,47 @@
-# Random of Randomness #
+# Random of Randomness
 
-Welcome! this is a personal project to create & update a playlist with random songs on Spotify.
+Welcome! This is a personal project to create and update a playlist with random songs on Spotify on every run.
 
-I had two reasons to create this app:
+## Why This App?
 
-1. My liked playlist occupies way more than the storage capacity in my phone. So I couldn't download it.
-2. If I wanted to download a playlist with random songs I would need to update it manually in order to get new songs on my phone.
+1. I don't like how Spotify "randomize" my music.
+2. My liked playlist occupies more storage than my phone can handle, so I couldn't download the whole playlist.
+3. If I wanted to download a playlist with random songs, I would need to create/update it manually to get new songs on my phone.
 
-This App uses OAuth to authenticate a user against the Spotify server and then uses REST API calls to create & update a specific playlist with random songs. Every time the app is run, a new set of songs replace all previous songs in that specific playlist.
+## Pre-requisites
 
-In order to use this app, you also need Spotify developer access keys.
-This app was written using Python 3.0 and tested in Linux.
-If you have any questions, please open a ticket in the issues sections.
+1. Docker 27.3.1+
+2. Docker Compose 2.32.0+
+3. [Python](./.python-version)
+4. Poetry 1.8.5+
+5. Create a `.env` file with the following variables:
+   - `SPOTIFY_CLIENT_ID`
+   - `SPOTIFY_CLIENT_SECRET`
+   - `SPOTIFY_PLAYLIST_ID`: A playlist ID that the app can use. [Instructions](https://clients.caster.fm/knowledgebase/110/How-to-find-Spotify-playlist-ID.html#:~:text=To%20find%20the%20Spotify%20playlist,Link%22%20under%20the%20Share%20menu.&text=The%20playlist%20id%20is%20the,after%20playlist/%20as%20marked%20above.)
+   - `SPOTIFY_STATE`: A random string
+   - `MONGO_INITDB_ROOT_USERNAME`: Username to be used by MongoDB and by the app
+   - `MONGO_INITDB_ROOT_PASSWORD`: Password to be used by MongoDB and by the app
+   - `MONGO_INITDB_DATABASE`: Database to be used by MongoDB and by the app
 
-## How to run this app ##
+To create a Spotify client ID and a client secret, follow [this tutorial](https://developer.spotify.com/documentation/web-api/concepts/apps). When creating the Spotify app, please set `<http://localhost:5000/callback>` as the redirect link.
 
-1. Clone this repo:
+## How to Run This App
 
-    ```sh
-    git clone git@github.com:jpmolinamatute/randomness.git
-    ```
+1. Install Python dependencies:
 
-2. Change directory to the new repo:
+   ```sh
+   poetry install
+   ```
 
-    ```sh
-    cd randomness
-    ```
+2. Run the app:
 
-3. Create a new virtual environment:
+   ```sh
+   poetry run invoke app.run
+   
+   # or
+   
+   poetry shell
+   invoke app.run
+   ```
 
-    ```sh
-    python -m venv ./.venv # Assuming 'python' is your python binary
-    ```
-
-4. Activate the virtual environment:
-
-    ```sh
-    . ./.venv/bin/activate
-    ```
-
-5. Install python packages:
-
-    ```sh
-    pip install -r ./requirements.txt
-    ```
-
-6. Run the script:
-
-    ```sh
-    ./run.py # if this is your first time running the app,
-             # it will fail (this is kind of OK), please notice a new config file was created
-             # please change the values and try again.
-    ```
-
-7. Enjoy!
-
-## How to improve randomness ##
-
-Over time I noticed my playlist wasn't as random as I would like it to be. This happens because on one hand, I have artists with one or few songs and on the other hand I have artists with too many songs. Even though I was running a random() function, artists with a higher number of songs had higher chances to get picked. This is where the “generator” key comes to play. The idea is to create mini-groups and then run the random() function in those mini-groups to level chances among artists and then create a better random playlist.
-
-The default value for the generator key is:
-
-```yaml
-playlist:
-  size: 100
-generator:
-    order: 0,
-    min_mark: 1,
-    weight: 1.0
-```
-
-This means that the code is going to create one mini-group and is going to take 100% of the songs from it.
-
-Since we may have many mini-groups we need to keep a sequence with an “order” key. With also need some limits  "min_mark" & "max_mark" (this is optional, if omitted it will take the max value available). This limit represents the number of songs per artist. The "weight" key is the percentage we are going to pick from this given mini-group. **NOTE**: all weight from all mini-groups must add up to 1.0.
-
-This is my config file as an example:
-
-```yaml
-playlist:
-  size: 1000
-generator:
-  - order: 0
-    min_mark: 1
-    max_mark: 4
-    weight: 0.3
-  - order: 1
-    min_mark: 4
-    max_mark: 11
-    weight: 0.3
-  - order: 2
-    min_mark: 11
-    max_mark: 24
-    weight: 0.25
-  - order: 3
-    min_mark: 24
-    weight: 0.15
-```
+3. Enjoy!

@@ -1,7 +1,5 @@
 from pathlib import Path
 import shutil
-from time import sleep
-from tkinter import E
 
 from invoke import task, Context, Collection
 from dotenv import load_dotenv
@@ -99,16 +97,6 @@ lint.add_task(mypy)
 lint.add_task(run_all)
 
 
-@task(name="pytest")
-def pytest(ctx: Context) -> None:
-    cmd = f"pytest --config-file={PYPROJECT} {TEST_ROOT}"
-    _log_open("pytest")
-    ctx.run(cmd, pty=PTY, echo=ECHO)
-
-
-tests.add_task(pytest)
-
-
 def _up(ctx: Context, detach: bool = False) -> None:
     compose_file = PROJECT_ROOT.joinpath("docker/docker-compose.yaml")
     cmd = f"docker compose -f {compose_file} up"
@@ -116,8 +104,6 @@ def _up(ctx: Context, detach: bool = False) -> None:
         cmd += " --detach"
     _log_open("docker-compose up")
     ctx.run(cmd, pty=PTY, echo=ECHO)
-    if detach:
-        sleep(5)
 
 
 @task(name="up")
@@ -151,6 +137,16 @@ def ps(ctx: Context) -> None:
 compose.add_task(down)
 compose.add_task(up)
 compose.add_task(ps)
+
+
+@task(name="pytest")
+def pytest(ctx: Context) -> None:
+    cmd = f"pytest --config-file={PYPROJECT} {TEST_ROOT}"
+    _log_open("pytest")
+    ctx.run(cmd, pty=PTY, echo=ECHO)
+
+
+tests.add_task(pytest)
 
 
 @task(name="run")

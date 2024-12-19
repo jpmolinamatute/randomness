@@ -7,6 +7,8 @@ from pydantic import ValidationError
 
 from src.spotify.types import LikedTracksResponse
 
+# pylint: disable=redefined-outer-name
+
 
 @pytest.fixture
 def loaded_json() -> dict[str, Any]:

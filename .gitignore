@@ -6,5 +6,5 @@ config.yaml
 **/deleteme/
 **/__pycache__/
 **/*.db
-src/logs/*
-!src/logs/.gitkeep
+src/spotify/logs/*
+!src/spotify/logs/.gitkeep
