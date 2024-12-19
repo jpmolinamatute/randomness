@@ -26,8 +26,8 @@ def test_run_query(mock_db: MagicMock) -> None:
     pipeline = [{"$match": {"artists._id": {"$in": ["artist1", "artist2"]}}}]
     randomness.run_query(pipeline)
 
-    mock_db.aggregate.assert_called_once_with(pipeline)
-    mock_db.aggregate.return_value.close.assert_called_once()
+    mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(pipeline)
+    mock_db.mongo_db["tracks"].aggregate.return_value.close.assert_called_once()
 
 
 def test_get_artist_ids(mock_db: MagicMock) -> None:
@@ -35,12 +35,12 @@ def test_get_artist_ids(mock_db: MagicMock) -> None:
     randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
 
     mock_cursor = MagicMock()
-    mock_db.aggregate.return_value = mock_cursor
+    mock_db.mongo_db["tracks"].aggregate.return_value = mock_cursor
     mock_cursor.__iter__.return_value = [{"_id": "artist1"}, {"_id": "artist2"}]
 
     result = randomness.get_artist_ids()
 
-    mock_db.aggregate.assert_called_once_with(
+    mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(
         [
             {"$unwind": "$artists"},
             {"$group": {"_id": "$artists._id"}},
@@ -71,7 +71,7 @@ def test_get_random_track(mock_db: MagicMock) -> None:
         {"$out": mock_db.name},
     ]
 
-    mock_db.aggregate.assert_called_once_with(expected_pipeline)
+    mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(expected_pipeline)
 
 
 def test_get_random_artist(mock_db: MagicMock) -> None:
@@ -98,7 +98,7 @@ def test_get_random_artist(mock_db: MagicMock) -> None:
                 {"$out": mock_db.name},
             ]
 
-            mock_db.aggregate.assert_called_once_with(expected_pipeline)
+            mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(expected_pipeline)
 
 
 def test_check_no_items(mock_db: MagicMock) -> None:
