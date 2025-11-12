@@ -1,72 +1,79 @@
-[tool.poetry]
+[project]
 name = "randomness"
 version = "0.1.0"
-description = ""
-authors = ["Juan Pablo Molina Matute <jpmolinamatute@gmail.com>"]
-readme = "README.md"
-package-mode = false
+description = "Add your description here"
+authors = [
+    { name = "Juan Pablo Molina Matute", email = "jpmolinamatute@gmail.com" },
+]
+requires-python = ">=3.14.0"
+dependencies = [
+    "pkce>=1.0.3",
+    "pydantic>=2.12.4",
+    "pymongo>=4.15.4",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-requests = "^2.31.0"
-pkce = "^1.0.3"
-python-dotenv = "^1.0.1"
-pymongo = "^4.10.1"
-pydantic = "^2.10.3"
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+    "isort>=7.0.0",
+    "mypy>=1.18.2",
+    "pylint>=4.0.2",
+    "types-requests>=2.32.4.20250913",
+    "pytest>=8.0.0",
+    "responses>=0.25.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-black = "^24.10.0"
-mypy = "^1.7.1"
-pylint = "^3.0.2"
-mypy-extensions = "^1.0.0"
-types-requests = "^2.31.0.10"
-typing-extensions = "^4.9.0"
-bpython = "^0.24"
-pytest = "^8.3.4"
-invoke = "^2.2.0"
-tk = "^0.1.0"
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.pytest.ini_options]
-minversion = "8.3"
-testpaths = ["tests"]
-addopts = "-rA"
+[tool.uv]
+python-preference = "only-managed"
+required-version = ">=0.7.17"
 
 [tool.mypy]
-mypy_path = "src"
-python_version = "3.12"
+strict = true
+python_version = "3.14"
+plugins = ["pydantic.mypy"]
 sqlite_cache = true
 show_column_numbers = true
 show_error_codes = true
-check_untyped_defs = true
-disallow_any_generics = true
-disallow_incomplete_defs = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
 follow_imports = "silent"
-warn_redundant_casts = true
-warn_unused_ignores = true
-ignore_missing_imports = true
+warn_unreachable = true
+exclude = "(__pycache__|.mypy_cache|.pytest_cache|.venv)/"
+# Treat only configured roots as package bases and resolve imports from ./src
+explicit_package_bases = true
+mypy_path = ["./src"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_untyped_fields = true
 
 [tool.black]
 line-length = 100
-target-version = ["py312"]
+target-version = ["py313"]
+exclude = "(__pycache__|.mypy_cache|.pytest_cache|.venv)/"
 
 [tool.isort]
 profile = "black"
 line_length = 100
-py_version = "312"
+py_version = 314
 lines_after_imports = 2
 virtual_env = "./.venv"
+skip_glob = [".venv/*", "__pycache__/*", ".mypy_cache/*", ".pytest_cache/*"]
+
+[tool.pytest.ini_options]
+addopts = "-vra  --color=yes"
+testpaths = "./tests"
+pythonpath = "./src"
+filterwarnings = [
+    # See: https://docs.pytest.org/en/stable/how-to/capture-warnings.html#controlling-warnings
+    "ignore:Core Pydantic V1 functionality isn't compatible with Python 3\\.14 or greater\\.:UserWarning:fastapi\\._compat\\.v1",
+]
 
 [tool.pylint.main]
-# Analyse import fallback blocks. This can be used to support both Python 2 and 3
+# Analyze import fallback blocks. This can be used to support both Python 2 and 3
 # compatible code, which means that the block might have code that exists only in
-# one or another interpreter, leading to false positives when analysed.
+# one or another interpreter, leading to false positives when analyses.
 # analyse-fallback-blocks =
 
 # Clear in-memory caches upon conclusion of linting. Useful if running pylint in
@@ -80,7 +87,7 @@ virtual_env = "./.venv"
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
 # run arbitrary code.
-# extension-pkg-allow-list =
+extension-pkg-allow-list = "pylint.extensions.typing"
 
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
@@ -94,40 +101,42 @@ virtual_env = "./.venv"
 # fail-on =
 
 # Specify a score threshold under which the program will exit with error.
-fail-under = 10.0
+fail-under = 10
 
 # Interpret the stdin as a python script, whose filename needs to be passed as
 # the module_or_package argument.
 # from-stdin =
 
 # Files or directories to be skipped. They should be base names, not paths.
-ignore = ["CVS"]
+ignore = ["CVS", ".venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".git"]
 
 # Add files or directories matching the regular expressions patterns to the
 # ignore-list. The regex matches against paths and can be in Posix or Windows
 # format. Because '\\' represents the directory delimiter on Windows systems, it
 # can't be used as an escape character.
-# ignore-paths =
+# ignore-paths = []
 
 # Files or directories matching the regular expression patterns are skipped. The
 # regex matches against base names, not paths. The default value ignores Emacs
 # file locks
-# ignore-patterns =
+ignore-patterns = ["^\\.#"]
 
-# List of module names for which member attributes should not be checked (useful
-# for modules/projects where namespaces are manipulated during runtime and thus
-# existing member attributes cannot be deduced by static analysis). It supports
-# qualified module names, as well as Unix pattern matching.
+# List of module names for which member attributes should not be checked and will
+# not be imported (useful for modules/projects where namespaces are manipulated
+# during runtime and thus existing member attributes cannot be deduced by static
+# analysis). It supports qualified module names, as well as Unix pattern
+# matching.
 # ignored-modules =
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
-# init-hook =
+
+# init-hook = "import sys; sys.path.insert(0, './src')"
 
 # Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
 # number of processors available to use, and will cap the count on Windows to
 # avoid hangs.
-# jobs =
+jobs = 0
 
 # Control the amount of potential inferred values when inferring a single object.
 # This can help the performance when dealing with large functions or complex,
@@ -136,14 +145,18 @@ limit-inference-results = 100
 
 # List of plugins (as comma separated values of python module names) to load,
 # usually to register additional checkers.
-# load-plugins =
+# load-plugins = ""
 
 # Pickle collected data for later comparisons.
-# persistent =
+persistent = true
+
+# Resolve imports to .pyi stubs if available. May reduce no-member messages and
+# increase not-an-iterable messages.
+# prefer-stubs =
 
 # Minimum Python version to use for version dependent checks. Will default to the
 # version used to run pylint.
-py-version = "3.12"
+py-version = "3.14"
 
 # Discover python modules and packages in the file system subtree.
 # recursive =
@@ -152,11 +165,7 @@ py-version = "3.12"
 # source root is an absolute path or a path relative to the current working
 # directory used to determine a package namespace for modules located under the
 # source root.
-# source-roots =
-
-# When enabled, pylint would attempt to guess common misconfiguration and emit
-# user-friendly hints instead of false-positive error messages.
-suggestion-mode = true
+source-roots = ["./src"]
 
 # Allow loading of arbitrary C extensions. Extensions are imported into the
 # active Python interpreter and may run arbitrary code.
@@ -227,7 +236,7 @@ function-naming-style = "snake_case"
 # function-rgx =
 
 # Good variable names which should always be accepted, separated by a comma.
-good-names = ["i", "j", "k", "ex", "np", "df", "pd", "Run", "_"]
+good-names = ["i", "j", "k", "ex", "Run", "_"]
 
 # Good variable names regexes, separated by a comma. If names match any regex,
 # they will always be accepted
@@ -291,17 +300,30 @@ variable-naming-style = "snake_case"
 # check-protected-access-in-special-methods =
 
 # List of method names used to declare (i.e. assign) instance attributes.
-defining-attr-methods = ["__init__", "__new__", "setUp", "__post_init__"]
+defining-attr-methods = [
+    "__init__",
+    "__new__",
+    "setUp",
+    "asyncSetUp",
+    "__post_init__",
+]
 
 # List of member names, which should be excluded from the protected access
 # warning.
-exclude-protected = ["_asdict", "_fields", "_replace", "_source", "_make"]
+exclude-protected = [
+    "_asdict",
+    "_fields",
+    "_replace",
+    "_source",
+    "_make",
+    "os._exit",
+]
 
 # List of valid names for the first argument in a class method.
 valid-classmethod-first-arg = ["cls"]
 
 # List of valid names for the first argument in a metaclass class method.
-valid-metaclass-classmethod-first-arg = ["cls"]
+valid-metaclass-classmethod-first-arg = ["mcs"]
 
 [tool.pylint.design]
 # List of regular expressions of class ancestor names to ignore when counting
@@ -312,8 +334,8 @@ valid-metaclass-classmethod-first-arg = ["cls"]
 # ignored-parents =
 
 # Maximum number of arguments for function / method.
-max-args = 5
-
+max-args = 6
+max-positional-arguments = 6
 # Maximum number of attributes for a class (see R0902).
 max-attributes = 7
 
@@ -333,7 +355,7 @@ max-parents = 7
 max-public-methods = 20
 
 # Maximum number of return / yield for function / method body.
-max-returns = 1
+max-returns = 6
 
 # Maximum number of statements in function / method body.
 max-statements = 50
@@ -343,12 +365,15 @@ min-public-methods = 2
 
 [tool.pylint.exceptions]
 # Exceptions that will emit a warning when caught.
-overgeneral-exceptions = ["builtins.BaseException"]
+overgeneral-exceptions = ["builtins.BaseException", "builtins.Exception"]
+
+[tool.pylint.string]
+check-quote-consistency = false
+check-str-concat-over-line-jumps = false
 
 [tool.pylint.format]
 # Expected format of line ending, e.g. empty (any line ending), LF or CRLF.
 expected-line-ending-format = "LF"
-
 # Regexp for a line that is allowed to be longer than the limit.
 ignore-long-lines = "^\\s*(# )?<?https?://\\S+>?$"
 
@@ -383,7 +408,7 @@ max-module-lines = 1000
 # allow-wildcard-with-all =
 
 # Deprecated modules which should not be used, separated by a comma.
-deprecated-modules = ["optparse", "tkinter.tix"]
+# deprecated-modules =
 
 # Output a graph (.gv or any supported image format) of external dependencies to
 # the given file (report RP0402 must not be disabled).
@@ -410,7 +435,7 @@ known-third-party = ["enchant"]
 [tool.pylint.logging]
 # The type of string formatting that logging methods do. `old` means using %
 # formatting, `new` is for `{}` formatting.
-logging-format-style = "new"
+logging-format-style = "old"
 
 # Logging modules to check that the string format arguments are in logging
 # function parameter format.
@@ -447,14 +472,14 @@ disable = [
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-comparison-to-zero",
     "use-symbolic-message-instead",
-    "invalid-name",
+    "missing-function-docstring",
     "missing-module-docstring",
-    "missing-function-docstring",
     "missing-class-docstring",
-    "logging-fstring-interpolation",
-    "c-extension-no-member",
-    "too-many-instance-attributes",
-    "missing-function-docstring",
+    "no-else-raise",
+    "broad-except",
+    "broad-exception-raised",
+    "too-few-public-methods",
+    "similarities",
 ]
 
 # Enable the message, report, category or checker with the given id(s). You can
@@ -466,6 +491,7 @@ disable = [
 [tool.pylint.method_args]
 # List of qualified names (i.e., library.method) which require a timeout
 # parameter e.g. 'requests.api.get,requests.api.post'
+
 timeout-methods = [
     "requests.api.delete",
     "requests.api.get",
@@ -479,7 +505,7 @@ timeout-methods = [
 
 [tool.pylint.miscellaneous]
 # List of note tags to take in consideration, separated by a comma.
-notes = ["@FIXME", "@TODO"]
+notes = ["@FIXME", "@XXX", "@TODO"]
 
 # Regular expression of note tags to take in consideration.
 # notes-rgx =
@@ -491,7 +517,11 @@ max-nested-blocks = 5
 # Complete name of functions that never returns. When checking for inconsistent-
 # return-statements if a never returning function is called then it will be
 # considered as an explicit return statement and no message will be printed.
-never-returning-functions = ["sys.exit"]
+never-returning-functions = ["sys.exit", "argparse.parse_error"]
+
+# Let 'consider-using-join' be raised when the separator to join on would be non-
+# empty (resulting in expected fixes of the type: ``"- " + " - ".join(items)``)
+suggest-join-with-non-empty-separator = true
 
 [tool.pylint.reports]
 # Python expression which should return a score less than or equal to 10. You
@@ -499,7 +529,7 @@ never-returning-functions = ["sys.exit"]
 # 'convention', and 'info' which contain the number of messages in each category,
 # as well as 'statement' which is the total number of statements analyzed. This
 # score is used by the global evaluation report (RP0004).
-evaluation = "10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)"
+evaluation = "max(0, 0 if fatal else 10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10))"
 
 # Template used to display messages. This is a python new-style format string
 # used to format the message information. See doc for all details.
@@ -524,7 +554,7 @@ ignore-comments = true
 ignore-docstrings = true
 
 # Imports are removed from the similarity computation
-# ignore-imports =
+ignore-imports = true
 
 # Signatures are removed from the similarity computation
 ignore-signatures = true
@@ -538,14 +568,14 @@ max-spelling-suggestions = 4
 
 # Spelling dictionary name. No available dictionaries : You need to install both
 # the python package and the system dependency for enchant to work.
-# spelling-dict =
+# spelling-dict = "en_CA"
 
 # List of comma separated words that should be considered directives if they
 # appear at the beginning of a comment and should not be checked.
 spelling-ignore-comment-directives = "fmt: on,fmt: off,noqa:,noqa,nosec,isort:skip,mypy:"
 
 # List of comma separated words that should not be checked.
-# spelling-ignore-words =
+spelling-ignore-words = "Arg, OAuth, Args, FK, TTL, env, stdout, Pydantic, Asyncpg, asyncpg, enum, frontend, dev, ArcherRead, JWT, samesite, sid, iat, params, dict, JSON, azp, asyncio, hostname, TCP, iss, backend, dicts, bool"
 
 # A path to a file that contains the private dictionary; one word per line.
 # spelling-private-dict-file =
@@ -553,15 +583,6 @@ spelling-ignore-comment-directives = "fmt: on,fmt: off,noqa:,noqa,nosec,isort:sk
 # Tells whether to store unknown words to the private dictionary (see the
 # --spelling-private-dict-file option) instead of raising a message.
 # spelling-store-unknown-words =
-
-[tool.pylint.string]
-# This flag controls whether inconsistent-quotes generates a warning when the
-# character used as a quote delimiter is used inconsistently within a module.
-check-quote-consistency = true
-
-# This flag controls whether the implicit-str-concat should generate a warning on
-# implicit string concatenation in sequences defined over several lines.
-# check-str-concat-over-line-jumps =
 
 [tool.pylint.typecheck]
 # List of decorators that produce context managers, such as
@@ -599,7 +620,12 @@ ignored-checks-for-mixins = [
 # List of class names for which member attributes should not be checked (useful
 # for classes with dynamically set attributes). This supports the use of
 # qualified names.
-ignored-classes = ["optparse.Values", "thread._local", "_thread._local"]
+ignored-classes = [
+    "optparse.Values",
+    "thread._local",
+    "_thread._local",
+    "argparse.Namespace",
+]
 
 # Show a hint with possible names when a member name was not found. The aspect of
 # finding the hint is based on edit distance.

@@ -1,0 +1,67 @@
+import logging
+from collections.abc import Mapping
+from os import environ
+from typing import Any
+
+from pymongo import MongoClient
+from pymongo.collection import Collection
+
+
+type CollType = dict[str, Any]
+
+
+class DB:
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(__name__)
+        # Read connection settings from environment and initialize client/db.
+        mongo_user = environ["MONGO_INITDB_ROOT_USERNAME"]
+        mongo_password = environ["MONGO_INITDB_ROOT_PASSWORD"]
+        mongo_db_name = environ["MONGO_INITDB_DATABASE"]
+        self.logger.debug(
+            "Initializing DB: connecting to MongoDB on %s with user=%s, database=%s",
+            "localhost:27017",
+            mongo_user,
+            mongo_db_name,
+        )
+        # Do not log raw password; mask if ever needed.
+        mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017"
+        self.mongo_client: MongoClient[CollType] = MongoClient(mongo_uri)
+        self.mongo_db = self.mongo_client[mongo_db_name]
+        # Name derived from playlist collection; exposed via property for tests.
+        self._playlist_name = self.get_playlist_collection().name
+
+    @property
+    def playlist_name(self) -> str:
+        return self._playlist_name
+
+    def count_track(self, mongo_filters: Mapping[str, Any]) -> int:
+        """Delegate to tracks collection count for testing convenience."""
+        self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
+        return self.get_tracks_collection().count_documents(mongo_filters)
+
+    def check_connection(self) -> bool:
+        self.logger.debug("Checking MongoDB connection via server_info()")
+        is_up = True
+        try:
+            info = self.mongo_client.server_info()
+            version = info.get("version")
+            is_primary = getattr(self.mongo_client, "is_primary", None)
+            self.logger.debug(
+                "MongoDB connection ok: version=%s, is_primary=%s", version, is_primary
+            )
+        except Exception:
+            self.logger.exception("MongoDB is not available", exc_info=True)
+            is_up = False
+        return is_up
+
+    def get_tracks_collection(self) -> Collection[CollType]:
+        self.logger.debug("Retrieving collection: %s", "tracks")
+        return self.mongo_db["tracks"]
+
+    def get_playlist_collection(self) -> Collection[CollType]:
+        self.logger.debug("Retrieving collection: %s", "playlist")
+        return self.mongo_db["playlist"]
+
+    def close(self) -> None:
+        self.logger.debug("Closing MongoDB client connection")
+        self.mongo_client.close()
