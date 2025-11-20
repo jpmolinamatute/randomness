@@ -1,5 +1,7 @@
+import json
 import logging
 from collections.abc import Mapping
+from datetime import date
 from os import environ
 from typing import Any
 
@@ -61,6 +63,33 @@ class DB:
     def get_playlist_collection(self) -> Collection[CollType]:
         self.logger.debug("Retrieving collection: %s", "playlist")
         return self.mongo_db["playlist"]
+
+    def export_to_json(self) -> None:
+        self.logger.debug("Exporting tracks to JSON")
+        tracks = self.get_tracks_collection().find({})
+        export_data = []
+        for track in tracks:
+            # Safely get artist name
+            artists = track.get("artists", [])
+            artist_name = (
+                artists[0].get("name")
+                if artists and isinstance(artists, list) and len(artists) > 0
+                else "Unknown"
+            )
+
+            data = {
+                "_id": str(track.get("_id")),
+                "href": track.get("href"),
+                "name": track.get("name"),
+                "artist_name": artist_name,
+            }
+            export_data.append(data)
+
+        filename = f"export-{date.today()}.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(export_data, f, indent=4)
+
+        self.logger.info("Exported %d tracks to %s", len(export_data), filename)
 
     def close(self) -> None:
         self.logger.debug("Closing MongoDB client connection")
