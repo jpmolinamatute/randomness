@@ -1,7 +1,7 @@
 [project]
 name = "randomness"
 version = "0.1.0"
-description = "Add your description here"
+description = "Random of Randomness"
 authors = [
     { name = "Juan Pablo Molina Matute", email = "jpmolinamatute@gmail.com" },
 ]
