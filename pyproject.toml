@@ -282,7 +282,7 @@ property-classes = ["abc.abstractproperty"]
 
 # Regular expression matching correct type alias names. If left empty, type alias
 # names will be checked with the set naming style.
-# typealias-rgx =
+typealias-rgx = "^[A-Z][a-zA-Z0-9]*$"
 
 # Regular expression matching correct type variable names. If left empty, type
 # variable names will be checked with the set naming style.

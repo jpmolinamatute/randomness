@@ -29,17 +29,12 @@ class DB:
         mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017"
         self.mongo_client: MongoClient[CollType] = MongoClient(mongo_uri)
         self.mongo_db = self.mongo_client[mongo_db_name]
-        # Name derived from playlist collection; exposed via property for tests.
-        self._playlist_name = self.get_playlist_collection().name
-
-    @property
-    def playlist_name(self) -> str:
-        return self._playlist_name
+        self.playlist_coll_name = "playlist"
 
     def count_track(self, mongo_filters: Mapping[str, Any]) -> int:
         """Delegate to tracks collection count for testing convenience."""
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
-        return self.get_tracks_collection().count_documents(mongo_filters)
+        return self.get_tracks_coll().count_documents(mongo_filters)
 
     def check_connection(self) -> bool:
         self.logger.debug("Checking MongoDB connection via server_info()")
@@ -56,17 +51,17 @@ class DB:
             is_up = False
         return is_up
 
-    def get_tracks_collection(self) -> Collection[CollType]:
+    def get_tracks_coll(self) -> Collection[CollType]:
         self.logger.debug("Retrieving collection: %s", "tracks")
         return self.mongo_db["tracks"]
 
-    def get_playlist_collection(self) -> Collection[CollType]:
-        self.logger.debug("Retrieving collection: %s", "playlist")
-        return self.mongo_db["playlist"]
+    def get_playlist_coll(self) -> Collection[CollType]:
+        self.logger.debug("Retrieving collection: %s", self.playlist_coll_name)
+        return self.mongo_db[self.playlist_coll_name]
 
     def export_to_json(self) -> None:
         self.logger.debug("Exporting tracks to JSON")
-        tracks = self.get_tracks_collection().find({})
+        tracks = self.get_tracks_coll().find({})
         export_data = []
         for track in tracks:
             # Safely get artist name

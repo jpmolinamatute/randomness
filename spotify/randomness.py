@@ -1,29 +1,27 @@
 import logging
 import random
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any
 
 from bson import ObjectId
 
 from spotify.db import DB
-
-
-type RandomnessTypes = Literal["track", "artist"]
+from spotify.types import RandomnessType
 
 
 class Randomness:
     def __init__(self, my_mongo: DB) -> None:
         self.logger = logging.getLogger(__name__)
         self.db = my_mongo
-        self.mongo_tracks_collection = my_mongo.get_tracks_collection()
-        self.mongo_playlist_collection = my_mongo.get_playlist_collection()
+        self.tracks_coll = my_mongo.get_tracks_coll()
+        self.playlist_coll = my_mongo.get_playlist_coll()
         self.artist_sampling_ratio = 0.25
         self.logger.debug(
             "Initialized Randomness: percentage=%.2f tracks=%s playlist=%s out_collection=%s",
             self.artist_sampling_ratio,
-            self.mongo_tracks_collection.name,
-            self.mongo_playlist_collection.name,
-            self.db.playlist_name,
+            self.tracks_coll.name,
+            self.playlist_coll.name,
+            self.db.playlist_coll_name,
         )
 
     def _randomize(self, whole_sample: list[str]) -> list[str]:
@@ -48,7 +46,7 @@ class Randomness:
             {"$group": {"_id": "$artists._id"}},
             {"$project": {"_id": 1}},
         ]
-        cursor = self.mongo_tracks_collection.aggregate(pipeline)
+        cursor = self.tracks_coll.aggregate(pipeline)
         result = [doc["_id"] for doc in cursor]
         cursor.close()
         self.logger.debug("Found %d distinct artist IDs", len(result))
@@ -60,14 +58,14 @@ class Randomness:
             len(pipeline),
             list(pipeline[0].keys()) if pipeline else [],
         )
-        cursor = self.mongo_tracks_collection.aggregate(pipeline)
+        cursor = self.tracks_coll.aggregate(pipeline)
         cursor.close()
 
     def get_random_tracks(self, no_items: int) -> None:
         self.logger.debug(
             "Building random track pipeline: no_items=%d out_collection=%s",
             no_items,
-            self.db.playlist_name,
+            self.db.playlist_coll_name,
         )
         self.logger.info("Generating a playlist with %d items and by random tracks", no_items)
         pipeline: list[dict[str, Any]] = [
@@ -79,7 +77,7 @@ class Randomness:
                     "created_at": {"$first": datetime.now(timezone.utc)},
                 }
             },
-            {"$out": self.db.playlist_name},
+            {"$out": self.db.playlist_coll_name},
         ]
 
         self.execute_aggregation_pipeline(pipeline)
@@ -102,7 +100,7 @@ class Randomness:
                     "created_at": {"$first": datetime.now(timezone.utc)},
                 }
             },
-            {"$out": self.db.playlist_name},
+            {"$out": self.db.playlist_coll_name},
         ]
 
         self.execute_aggregation_pipeline(pipeline)
@@ -120,7 +118,7 @@ class Randomness:
         if max_no_item and no_items > max_no_item:
             raise ValueError(f"Number of items must be less than {max_no_item}")
 
-    def generate_random_playlist(self, item_type: RandomnessTypes, no_items: int) -> None:
+    def generate_random_playlist(self, item_type: RandomnessType, no_items: int) -> None:
         self.logger.debug(
             "Dispatching generate_random_playlist: type=%s no_items=%d", item_type, no_items
         )
