@@ -9,16 +9,13 @@ import pkce
 import requests
 
 from spotify.helpers import CustomHTTPServer, RequestHandler
+from spotify.schema import SpotifyCredentials, SpotifySecrets
 from spotify.token import Token, TokenError
-from spotify.types import SpotifyCredentials, SpotifySecrets
 
 
 class SpotifyError(TypedDict):
     status: int
     message: str
-
-
-TIMEOUT = 15
 
 
 class Auth:
@@ -30,6 +27,7 @@ class Auth:
     AUTH_TIMEOUT_SECONDS = 300
     TOKEN_URL = "https://accounts.spotify.com/api/token"
     SERVER_ADDRESS: tuple[str, int] = ("localhost", 5000)
+    TIMEOUT = 15
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
@@ -154,7 +152,7 @@ class Auth:
             "client_id": self.secrets.client_id,
             "code_verifier": self.secrets.code_verifier,
         }
-        response = requests.post(self.TOKEN_URL, headers=headers, data=data, timeout=TIMEOUT)
+        response = requests.post(self.TOKEN_URL, headers=headers, data=data, timeout=self.TIMEOUT)
         response_data = response.json()
         if response.status_code != 200:
             raise TokenError(f"Error obtaining access token: {response_data}")
@@ -174,7 +172,7 @@ class Auth:
             "refresh_token": self.credentials.refresh_token,
             "client_id": self.secrets.client_id,
         }
-        response = requests.post(self.TOKEN_URL, headers=headers, data=data, timeout=TIMEOUT)
+        response = requests.post(self.TOKEN_URL, headers=headers, data=data, timeout=self.TIMEOUT)
         response_data = response.json()
         if response.status_code == 200:
             return self.build_and_store_token(response_data, self.credentials.refresh_token)

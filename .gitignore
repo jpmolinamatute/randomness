@@ -2,9 +2,5 @@
 .venv/
 .vscode/
 config.yaml
-**/deleteme.*
-**/deleteme/
 **/__pycache__/
-**/*.db
-src/spotify/logs/*
-!src/spotify/logs/.gitkeep
+export-*.json

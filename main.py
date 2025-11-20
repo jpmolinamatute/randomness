@@ -28,8 +28,8 @@ def run(args: argparse.Namespace, logger: logging.Logger) -> None:
         my_mongo.close()
         return
 
-    randomness.generate_random_playlist("track", 100)
     sp_client.delete_all_playlist_tracks()
+    randomness.generate_random_playlist("track", 100)
     sp_client.populate_playlist_from_db()
     my_mongo.close()
 

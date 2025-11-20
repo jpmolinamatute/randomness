@@ -17,20 +17,9 @@ def mock_db() -> Generator[MagicMock, None, None]:
         yield mock_db_instance
 
 
-def test_execute_aggregation_pipeline(mock_db: MagicMock) -> None:
-    randomness = Randomness(mock_db)
-    randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
-
-    pipeline = [{"$match": {"artists._id": {"$in": ["artist1", "artist2"]}}}]
-    randomness.execute_aggregation_pipeline(pipeline)
-
-    mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(pipeline)
-    mock_db.mongo_db["tracks"].aggregate.return_value.close.assert_called_once()
-
-
 def test_get_artist_ids(mock_db: MagicMock) -> None:
     randomness = Randomness(mock_db)
-    randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
+    randomness.tracks_coll = mock_db.mongo_db["tracks"]
 
     mock_cursor = MagicMock()
     mock_db.mongo_db["tracks"].aggregate.return_value = mock_cursor
@@ -51,8 +40,8 @@ def test_get_artist_ids(mock_db: MagicMock) -> None:
 
 def test_get_random_tracks(mock_db: MagicMock) -> None:
     randomness = Randomness(mock_db)
-    randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
-    randomness.mongo_playlist_collection = mock_db.mongo_db["playlist"]
+    randomness.tracks_coll = mock_db.mongo_db["tracks"]
+    randomness.playlist_coll = mock_db.mongo_db["playlist"]
 
     no_items = 10
     randomness.get_random_tracks(no_items)
@@ -66,7 +55,7 @@ def test_get_random_tracks(mock_db: MagicMock) -> None:
                 "created_at": {"$first": ANY},
             }
         },
-        {"$out": mock_db.playlist_name},
+        {"$out": mock_db.playlist_coll_name},
     ]
 
     mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(expected_pipeline)
@@ -74,8 +63,8 @@ def test_get_random_tracks(mock_db: MagicMock) -> None:
 
 def test_get_random_artists(mock_db: MagicMock) -> None:
     randomness = Randomness(mock_db)
-    randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
-    randomness.mongo_playlist_collection = mock_db.mongo_db["playlist"]
+    randomness.tracks_coll = mock_db.mongo_db["tracks"]
+    randomness.playlist_coll = mock_db.mongo_db["playlist"]
 
     all_artists = ["artist1", "artist2", "artist3", "artist4"]
     with patch.object(randomness, "get_artist_ids", return_value=all_artists):
@@ -93,7 +82,7 @@ def test_get_random_artists(mock_db: MagicMock) -> None:
                         "created_at": {"$first": ANY},
                     }
                 },
-                {"$out": mock_db.playlist_name},
+                {"$out": mock_db.playlist_coll_name},
             ]
 
             mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(expected_pipeline)
@@ -101,7 +90,7 @@ def test_get_random_artists(mock_db: MagicMock) -> None:
 
 def test_validate_item_count(mock_db: MagicMock) -> None:
     randomness = Randomness(mock_db)
-    randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
+    randomness.tracks_coll = mock_db.mongo_db["tracks"]
 
     mock_db.count_track.return_value = 1000
 
@@ -116,8 +105,8 @@ def test_validate_item_count(mock_db: MagicMock) -> None:
 
 def test_generate_random_playlist(mock_db: MagicMock) -> None:
     randomness = Randomness(mock_db)
-    randomness.mongo_tracks_collection = mock_db.mongo_db["tracks"]
-    randomness.mongo_playlist_collection = mock_db.mongo_db["playlist"]
+    randomness.tracks_coll = mock_db.mongo_db["tracks"]
+    randomness.playlist_coll = mock_db.mongo_db["playlist"]
 
     with patch.object(randomness, "get_random_tracks") as mock_get_random_tracks:
         with patch.object(randomness, "get_random_artists") as mock_get_random_artists:
