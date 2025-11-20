@@ -1,10 +1,7 @@
 import logging
 from os import environ
-from pathlib import Path
 
 import requests
-from bson import encode
-from bson.raw_bson import RawBSONDocument
 
 from spotify.auth import Auth
 from spotify.db import DB
@@ -22,13 +19,11 @@ class Client:
 
         self.mongo_tracks_collection = my_mongo.get_tracks_collection()
         self.mongo_playlist_collection = my_mongo.get_playlist_collection()
-        self.filename = Path(__name__).parent.joinpath("liked_tracks.csv")
         self.spotify_playlist_id = environ["SPOTIFY_PLAYLIST_ID"]
         self.logger.debug(
-            "Initialized Client: api_url=%s playlist_id=%s filename=%s",
+            "Initialized Client: api_url=%s playlist_id=%s",
             self.api_url,
             self.spotify_playlist_id,
-            self.filename,
         )
 
     def _get_headers(self) -> dict[str, str]:
@@ -83,49 +78,27 @@ class Client:
             raise
         return result
 
-    def clean_csv_field(self, csv_field: str) -> str:
-        self.logger.debug("Cleaning CSV field: original_len=%d", len(csv_field))
-        return csv_field.replace(",", " ")
+    def insert_tracks(self, tracks: list[Track]) -> None:
+        self.logger.debug("Saving tracks to MongoDB: count=%d", len(tracks))
+        new_tracks = []
+        for t in tracks:
+            mongo_track_dict = t.model_dump(by_alias=True)
+            new_tracks.append(mongo_track_dict)
 
-    def get_all_liked_tracks(self) -> list[Track]:
+        self.mongo_tracks_collection.insert_many(new_tracks)
+
+    def get_all_liked_tracks(self) -> None:
         self.logger.debug("Starting retrieval of all liked tracks")
         self.logger.info("Getting all liked tracks")
-        all_tracks: list[Track] = []
         url: str | None = f"{self.api_url}/me/tracks?offset=0&limit=50"
 
         while url:
             response_data = self.fetch_tracks_batch(url=url, msg="liked")
             batch_tracks = [item.track for item in response_data.items]
-            all_tracks.extend(batch_tracks)
             self.insert_tracks(batch_tracks)
             url = response_data.next
-        self.save_tracks_to_file(all_tracks)
 
-        self.logger.debug("Completed retrieval of liked tracks: total=%d", len(all_tracks))
-        return all_tracks
-
-    def insert_tracks(self, tracks: list[Track]) -> None:
-        self.logger.debug("Saving tracks to MongoDB: count=%d", len(tracks))
-        new_tracks = []
-        for t in tracks:
-            mongo_track_dict = t.to_dict(True)
-            bson_data = encode(mongo_track_dict)
-            raw_bson_document = RawBSONDocument(bson_data)
-            new_tracks.append(raw_bson_document)
-
-        self.mongo_tracks_collection.insert_many(new_tracks)
-
-    def save_tracks_to_file(self, tracks: list[Track]) -> None:
-        self.logger.debug(
-            "Writing tracks to CSV file: path=%s count=%d", self.filename, len(tracks)
-        )
-        with open(self.filename, "w", encoding="utf-8") as f:
-            f.write("Artist,Track,Album\n")
-            for track in tracks:
-                artist = self.clean_csv_field(track.artists[0].name)
-                name = self.clean_csv_field(track.name)
-                album = self.clean_csv_field(track.album.name)
-                f.write(f"{artist},{name},{album}\n")
+        self.logger.debug("Completed retrieval of liked tracks")
 
     def get_playlist_tracks(self) -> list[Track]:
         self.logger.debug("Fetching playlist tracks: playlist_id=%s", self.spotify_playlist_id)

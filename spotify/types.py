@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # Spotify response sample for GET https://api.spotify.com/v1/me/tracks requests
@@ -116,8 +116,21 @@ class Image(BaseModel):
     model_config = ConfigDict(title="Image", extra="forbid")
 
 
-class Artist(BaseModel):
-    id: str = Field(..., alias="_id", description="Spotify ID of the artist")
+class MongoIdMixin(BaseModel):
+    """Mixin to accept either 'id' or '_id' in raw payload and always expose alias '_id'."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_id(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "id" in data and "_id" not in data:
+            data["_id"] = data.pop("id")
+        return data
+
+
+class Artist(MongoIdMixin):
+    artist_id: str = Field(..., alias="_id", description="Spotify ID of the artist")
     external_urls: ExternalUrls = Field(
         ..., description="External URLs for this artist (Spotify link)"
     )
@@ -128,9 +141,17 @@ class Artist(BaseModel):
 
     model_config = ConfigDict(title="Artist", extra="forbid", populate_by_name=True)
 
+    @property
+    def _id(self) -> str:
+        return self.artist_id
 
-class Album(BaseModel):
-    id: str = Field(..., alias="_id", description="Spotify ID of the album")
+    @_id.setter
+    def _id(self, value: str) -> None:
+        self.artist_id = value
+
+
+class Album(MongoIdMixin):
+    album_id: str = Field(..., alias="_id", description="Spotify ID of the album")
     artists: list[Artist] = Field(..., description="List of artists for the album")
     album_type: str = Field(..., description="Album type: album, single, compilation, etc.")
     available_markets: list[str] = Field(
@@ -160,6 +181,14 @@ class Album(BaseModel):
 
     model_config = ConfigDict(title="Album", extra="forbid", populate_by_name=True)
 
+    @property
+    def _id(self) -> str:
+        return self.album_id
+
+    @_id.setter
+    def _id(self, value: str) -> None:
+        self.album_id = value
+
 
 class ExternalIds(BaseModel):
     isrc: str = Field("", description="International Standard Recording Code identifying the track")
@@ -169,8 +198,8 @@ class ExternalIds(BaseModel):
     model_config = ConfigDict(title="ExternalIds", extra="forbid")
 
 
-class LinkedFrom(BaseModel):
-    id: str = Field(
+class LinkedFrom(MongoIdMixin):
+    linked_from_id: str = Field(
         ...,
         alias="_id",
         description="Original track ID this track is linked from (e.g., replaced version)",
@@ -184,6 +213,14 @@ class LinkedFrom(BaseModel):
 
     model_config = ConfigDict(title="LinkedFrom", extra="forbid", populate_by_name=True)
 
+    @property
+    def _id(self) -> str:
+        return self.linked_from_id
+
+    @_id.setter
+    def _id(self, value: str) -> None:
+        self.linked_from_id = value
+
 
 class Restrictions(BaseModel):
     reason: Literal["market", "product", "explicit"] = Field(
@@ -193,8 +230,8 @@ class Restrictions(BaseModel):
     model_config = ConfigDict(title="Restrictions", extra="forbid")
 
 
-class Track(BaseModel):
-    id: str = Field(..., alias="_id", description="Spotify ID of the track")
+class Track(MongoIdMixin):
+    track_id: str = Field(..., alias="_id", description="Spotify ID of the track")
     available_markets: list[str] = Field(
         ..., description="Country codes where the track can be streamed"
     )
@@ -238,8 +275,13 @@ class Track(BaseModel):
 
     model_config = ConfigDict(title="Track", extra="forbid", populate_by_name=True)
 
-    def to_dict(self, by_alias: bool = False) -> dict[str, Any]:
-        return self.model_dump(by_alias=by_alias)
+    @property
+    def _id(self) -> str:
+        return self.track_id
+
+    @_id.setter
+    def _id(self, value: str) -> None:
+        self.track_id = value
 
 
 class Followers(BaseModel):
@@ -251,18 +293,26 @@ class Followers(BaseModel):
     model_config = ConfigDict(title="Followers", extra="forbid")
 
 
-class Owner(BaseModel):
+class Owner(MongoIdMixin):
     external_urls: ExternalUrls = Field(
         ..., description="External URLs for this user (Spotify link)"
     )
     followers: Followers | None = Field(None, description="Follower count data if available")
     href: str = Field(..., description="Spotify Web API endpoint for this user")
-    id: str = Field(..., description="User's Spotify ID")
+    user_id: str = Field(..., alias="_id", description="User's Spotify ID")
     type: Literal["user"] = Field(..., description="Object type, always 'user'")
     uri: str = Field(..., description="Spotify URI for the user")
     display_name: str = Field("", description="User's display name")
 
-    model_config = ConfigDict(title="Owner", extra="forbid")
+    model_config = ConfigDict(title="Owner", extra="forbid", populate_by_name=True)
+
+    @property
+    def _id(self) -> str:
+        return self.user_id
+
+    @_id.setter
+    def _id(self, value: str) -> None:
+        self.user_id = value
 
 
 class VideoThumbnail(BaseModel):
@@ -306,7 +356,7 @@ class LikedTracksResponse(BaseModel):
     model_config = ConfigDict(title="LikedTracksResponse", extra="forbid", populate_by_name=True)
 
 
-class Playlist(BaseModel):
+class Playlist(MongoIdMixin):
     collaborative: bool = Field(
         ..., description="True if the playlist is collaborative (other users can modify)"
     )
@@ -316,7 +366,7 @@ class Playlist(BaseModel):
     )
     followers: Followers = Field(..., description="Playlist follower count data")
     href: str = Field(..., description="Spotify Web API endpoint for this playlist")
-    id: str = Field(..., description="Spotify ID of the playlist")
+    playlist_id: str = Field(..., alias="_id", description="Spotify ID of the playlist")
     images: list[Image] = Field(..., description="Cover art images for the playlist")
     name: str = Field(..., description="Playlist name")
     owner: Owner = Field(..., description="Owner user object of the playlist")
@@ -328,7 +378,15 @@ class Playlist(BaseModel):
     type: Literal["playlist"] = Field(..., description="Object type, always 'playlist'")
     uri: str = Field(..., description="Spotify URI for the playlist")
 
-    model_config = ConfigDict(title="Playlist", extra="forbid")
+    model_config = ConfigDict(title="Playlist", extra="forbid", populate_by_name=True)
+
+    @property
+    def _id(self) -> str:
+        return self.playlist_id
+
+    @_id.setter
+    def _id(self, value: str) -> None:
+        self.playlist_id = value
 
 
 class SpotifyCredentials(BaseModel):

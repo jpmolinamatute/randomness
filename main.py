@@ -22,6 +22,12 @@ def run(args: argparse.Namespace, logger: logging.Logger) -> None:
         sp_client.get_all_liked_tracks()
     else:
         logger.info("Skipping cache update; using existing liked tracks from DB")
+
+    if args.export:
+        my_mongo.export_to_json()
+        my_mongo.close()
+        return
+
     randomness.generate_random_playlist("track", 100)
     sp_client.delete_all_playlist_tracks()
     sp_client.populate_playlist_from_db()
@@ -40,6 +46,12 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Refresh liked tracks from Spotify before generating the playlist (defaults to False)",
+    )
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        default=False,
+        help="Export liked tracks to a JSON file and exit",
     )
     args = parser.parse_args()
     try:
