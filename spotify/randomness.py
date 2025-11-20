@@ -1,5 +1,6 @@
 import logging
 import random
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from typing import Any
 
@@ -41,7 +42,7 @@ class Randomness:
 
     def get_artist_ids(self) -> list[str]:
         self.logger.debug("Aggregating distinct artist IDs from tracks collection")
-        pipeline: list[dict[str, Any]] = [
+        pipeline: Sequence[Mapping[str, Any]] = [
             {"$unwind": "$artists"},
             {"$group": {"_id": "$artists._id"}},
             {"$project": {"_id": 1}},
@@ -52,15 +53,6 @@ class Randomness:
         self.logger.debug("Found %d distinct artist IDs", len(result))
         return result
 
-    def execute_aggregation_pipeline(self, pipeline: list[dict[str, Any]]) -> None:
-        self.logger.debug(
-            "Running aggregation pipeline: stages=%d first_stage_keys=%s",
-            len(pipeline),
-            list(pipeline[0].keys()) if pipeline else [],
-        )
-        cursor = self.tracks_coll.aggregate(pipeline)
-        cursor.close()
-
     def get_random_tracks(self, no_items: int) -> None:
         self.logger.debug(
             "Building random track pipeline: no_items=%d out_collection=%s",
@@ -68,7 +60,7 @@ class Randomness:
             self.db.playlist_coll_name,
         )
         self.logger.info("Generating a playlist with %d items and by random tracks", no_items)
-        pipeline: list[dict[str, Any]] = [
+        pipeline: Sequence[Mapping[str, Any]] = [
             {"$sample": {"size": no_items}},
             {
                 "$group": {
@@ -80,7 +72,8 @@ class Randomness:
             {"$out": self.db.playlist_coll_name},
         ]
 
-        self.execute_aggregation_pipeline(pipeline)
+        cursor = self.tracks_coll.aggregate(pipeline)
+        cursor.close()
 
     def get_random_artists(self, no_items: int) -> None:
         self.logger.debug("Selecting random artists to build playlist: no_items=%d", no_items)
@@ -90,7 +83,7 @@ class Randomness:
         self.logger.debug(
             "Artist sampling: total_artists=%d selected=%d", len(all_artists), len(some_artists)
         )
-        pipeline: list[dict[str, Any]] = [
+        pipeline: Sequence[Mapping[str, Any]] = [
             {"$match": {"artists._id": {"$in": some_artists}}},
             {"$sample": {"size": no_items}},
             {
@@ -103,7 +96,8 @@ class Randomness:
             {"$out": self.db.playlist_coll_name},
         ]
 
-        self.execute_aggregation_pipeline(pipeline)
+        cursor = self.tracks_coll.aggregate(pipeline)
+        cursor.close()
 
     def validate_item_count(self, no_items: int) -> None:
         self.logger.debug("Validating requested item count: no_items=%s", no_items)

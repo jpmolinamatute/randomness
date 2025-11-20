@@ -101,23 +101,16 @@ class Client:
 
         self.logger.debug("Completed retrieval of liked tracks")
 
-    def get_playlist_tracks(self) -> list[Track]:
-        self.logger.debug("Fetching playlist tracks: playlist_id=%s", self.spotify_playlist_id)
-        self.logger.info("Getting playlist tracks")
-        all_tracks = []
-        url: str | None = (
-            f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
-            f"?offset=0&limit={self.ME_BATCH_SIZE}"
+    def read_latest_playlist_track_uris(self) -> list[str]:
+        self.logger.debug("Reading playlist from DB")
+        uri_list = []
+        playlist = self.playlist_coll.find_one(
+            sort=[("created_at", -1)], projection={"tracks.uri": 1, "_id": 0}
         )
-
-        while url:
-            response_data = self.fetch_tracks_batch(url, "playlist")
-            batch_tracks = [item.track for item in response_data.items]
-            all_tracks.extend(batch_tracks)
-            url = response_data.next
-
-        self.logger.debug("Fetched playlist tracks: total=%d", len(all_tracks))
-        return all_tracks
+        if playlist:
+            uri_list = [track["uri"] for track in playlist["tracks"]]
+        self.logger.info("Read %d tracks from the playlist", len(uri_list))
+        return uri_list
 
     def delete_all_playlist_tracks(self) -> None:
         self.logger.debug("Deleting playlist content: playlist_id=%s", self.spotify_playlist_id)
@@ -126,29 +119,16 @@ class Client:
         headers = self._get_headers()
         headers["Content-Type"] = "application/json"
 
-        # Get all tracks in the playlist
-        playlist_tracks = self.get_playlist_tracks()
-        track_uris = [{"uri": track.uri} for track in playlist_tracks]
-        self.logger.debug("Tracks to remove: total=%d", len(track_uris))
+        uri_list = self.read_latest_playlist_track_uris()
+        self.logger.debug("Tracks to remove: total=%d", len(uri_list))
 
         # Remove tracks in batches of self.BATCH_SIZE (Spotify API limit)
-        for i in range(0, len(track_uris), self.BATCH_SIZE):
-            batch = track_uris[i : i + self.BATCH_SIZE]
+        for i in range(0, len(uri_list), self.BATCH_SIZE):
+            batch = uri_list[i : i + self.BATCH_SIZE]
             self.logger.debug("Deleting batch: size=%d index=%d", len(batch), i)
-            data = {"tracks": batch}
+            data = {"tracks": [{"uri": uri} for uri in batch]}
             response = requests.delete(url, headers=headers, json=data, timeout=self.TIMEOUT)
             response.raise_for_status()
-
-    def read_latest_playlist_track_ids(self) -> list[str]:
-        self.logger.debug("Reading playlist from DB")
-        id_list = []
-        playlist = self.playlist_coll.find_one(
-            sort=[("created_at", -1)], projection={"tracks._id": 1, "_id": 0}
-        )
-        if playlist:
-            id_list = [track["_id"] for track in playlist["tracks"]]
-        self.logger.info("Read %d tracks from the playlist", len(id_list))
-        return id_list
 
     def populate_playlist_from_db(self) -> None:
         self.logger.debug(
@@ -156,14 +136,14 @@ class Client:
         )
         self.logger.info("Generating content")
         url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
-        id_list = self.read_latest_playlist_track_ids()
-        self.logger.debug("Preparing to add tracks: total=%d", len(id_list))
+        uri_list = self.read_latest_playlist_track_uris()
+        self.logger.debug("Preparing to add tracks: total=%d", len(uri_list))
         headers = self._get_headers()
         headers["Content-Type"] = "application/json"
-        for i in range(0, len(id_list), self.BATCH_SIZE):
-            chunk = id_list[i : i + self.BATCH_SIZE]
-            self.logger.debug("Adding batch to playlist: size=%d index=%d", len(chunk), i)
-            data = {"uris": [f"spotify:track:{track_id}" for track_id in chunk]}
+        for i in range(0, len(uri_list), self.BATCH_SIZE):
+            batch = uri_list[i : i + self.BATCH_SIZE]
+            self.logger.debug("Adding batch to playlist: size=%d index=%d", len(batch), i)
+            data = {"uris": batch}
             response = requests.post(url, headers=headers, json=data, timeout=self.TIMEOUT)
             if response.status_code != 201:
                 self.logger.error(

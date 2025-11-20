@@ -17,17 +17,6 @@ def mock_db() -> Generator[MagicMock, None, None]:
         yield mock_db_instance
 
 
-def test_execute_aggregation_pipeline(mock_db: MagicMock) -> None:
-    randomness = Randomness(mock_db)
-    randomness.tracks_coll = mock_db.mongo_db["tracks"]
-
-    pipeline = [{"$match": {"artists._id": {"$in": ["artist1", "artist2"]}}}]
-    randomness.execute_aggregation_pipeline(pipeline)
-
-    mock_db.mongo_db["tracks"].aggregate.assert_called_once_with(pipeline)
-    mock_db.mongo_db["tracks"].aggregate.return_value.close.assert_called_once()
-
-
 def test_get_artist_ids(mock_db: MagicMock) -> None:
     randomness = Randomness(mock_db)
     randomness.tracks_coll = mock_db.mongo_db["tracks"]
