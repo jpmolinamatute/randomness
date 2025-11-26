@@ -130,6 +130,43 @@ class Client:
             response = requests.delete(url, headers=headers, json=data, timeout=self.TIMEOUT)
             response.raise_for_status()
 
+    def get_all_playlists(self) -> None:
+        self.logger.info("Getting all playlists")
+        url: str | None = f"{self.api_url}/me/playlists?offset=0&limit={self.ME_BATCH_SIZE}"
+
+        while url:
+            self.logger.debug("Fetching playlists batch: url=%s timeout=%ss", url, self.TIMEOUT)
+            headers = self._get_headers()
+            human_readable = self.describe_paging_window(url)
+            self.logger.info("Getting batch of playlists %s", human_readable)
+            response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
+            response.raise_for_status()
+            response_data = response.json()
+
+            for item in response_data.get("items", []):
+                self.logger.info(
+                    "Playlist: Name='%s' ID='%s' Tracks=%d",
+                    item["name"],
+                    item["id"],
+                    item["tracks"]["total"],
+                )
+
+            url = response_data.get("next")
+
+    def update_queue(self) -> None:
+        self.logger.info("Updating playlist queue")
+        url = f"{self.api_url}/me/player/play"
+        playlist_uri = f"spotify:playlist:{self.spotify_playlist_id}"
+        headers = self._get_headers()
+        headers["Content-Type"] = "application/json"
+        real_data = {
+            "context_uri": playlist_uri,
+            "offset": {"position": 0},
+        }
+        self.logger.debug("updating queue with playlist URI: %s", playlist_uri)
+        response = requests.put(url, headers=headers, json=real_data, timeout=self.TIMEOUT)
+        response.raise_for_status()
+
     def populate_playlist_from_db(self) -> None:
         self.logger.debug(
             "Generating content in playlist: playlist_id=%s", self.spotify_playlist_id
@@ -143,9 +180,6 @@ class Client:
         for i in range(0, len(uri_list), self.BATCH_SIZE):
             batch = uri_list[i : i + self.BATCH_SIZE]
             self.logger.debug("Adding batch to playlist: size=%d index=%d", len(batch), i)
-            data = {"uris": batch}
+            data = {"uris": batch, "position": i}
             response = requests.post(url, headers=headers, json=data, timeout=self.TIMEOUT)
-            if response.status_code != 201:
-                self.logger.error(
-                    "Failed to add tracks: %d, %s", response.status_code, response.json()
-                )
+            response.raise_for_status()

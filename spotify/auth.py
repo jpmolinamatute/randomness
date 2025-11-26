@@ -46,7 +46,7 @@ class Auth:
         self.credentials = SpotifyCredentials(
             access_token="",
             refresh_token="",
-            scope="user-library-read playlist-modify-public playlist-modify-private",
+            scope="user-library-read playlist-modify-public playlist-modify-private user-modify-playback-state",
         )
 
         # Event is created when starting auth flow

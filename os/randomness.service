@@ -1,0 +1,28 @@
+[Unit]
+Description=Random of Randomness
+After=network.target
+Wants=network-online.target
+
+[Service]
+User=juanpa
+Group=juanpa
+WorkingDirectory=/home/juanpa/Projects/randomness
+
+# Environment variables (permissions 600, owned by juanpa)
+EnvironmentFile=/home/juanpa/Projects/randomness/.env
+Type=oneshot
+ExecStart=/home/juanpa/Projects/randomness/scripts/daemon.bash
+TimeoutStartSec=300
+
+# No restart needed for a short-lived batch job
+Restart=no
+
+# Capture logs in journald
+StandardOutput=journal
+StandardError=journal
+
+# Optionally increase open file limit
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
