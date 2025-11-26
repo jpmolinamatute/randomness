@@ -30,6 +30,7 @@ class DB:
         self.mongo_client: MongoClient[CollType] = MongoClient(mongo_uri)
         self.mongo_db = self.mongo_client[mongo_db_name]
         self.playlist_coll_name = "playlist"
+        self.tracks_coll_name = "tracks"
 
     def count_track(self, mongo_filters: Mapping[str, Any]) -> int:
         """Delegate to tracks collection count for testing convenience."""
@@ -52,8 +53,8 @@ class DB:
         return is_up
 
     def get_tracks_coll(self) -> Collection[CollType]:
-        self.logger.debug("Retrieving collection: %s", "tracks")
-        return self.mongo_db["tracks"]
+        self.logger.debug("Retrieving collection: %s", self.tracks_coll_name)
+        return self.mongo_db[self.tracks_coll_name]
 
     def get_playlist_coll(self) -> Collection[CollType]:
         self.logger.debug("Retrieving collection: %s", self.playlist_coll_name)

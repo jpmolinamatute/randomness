@@ -17,6 +17,10 @@ def run(args: argparse.Namespace, logger: logging.Logger) -> None:
     sp_client = Client(sp_auth, my_mongo)
     randomness = Randomness(my_mongo)
 
+    if args.get_all_playlists:
+        sp_client.get_all_playlists()
+        return
+
     if args.update_cache or my_mongo.count_track({}) == 0:
         logger.info("Updating local cache of liked tracks from Spotify API...")
         sp_client.get_all_liked_tracks()
@@ -31,6 +35,7 @@ def run(args: argparse.Namespace, logger: logging.Logger) -> None:
     sp_client.delete_all_playlist_tracks()
     randomness.generate_random_playlist("track", 100)
     sp_client.populate_playlist_from_db()
+    sp_client.update_queue()
     my_mongo.close()
 
 
@@ -52,6 +57,12 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Export liked tracks to a JSON file and exit",
+    )
+    parser.add_argument(
+        "--get-all-playlists",
+        action="store_true",
+        default=False,
+        help="Get all playlists from Spotify",
     )
     args = parser.parse_args()
     try:

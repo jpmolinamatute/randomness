@@ -14,14 +14,11 @@ class Randomness:
     def __init__(self, my_mongo: DB) -> None:
         self.logger = logging.getLogger(__name__)
         self.db = my_mongo
-        self.tracks_coll = my_mongo.get_tracks_coll()
-        self.playlist_coll = my_mongo.get_playlist_coll()
         self.artist_sampling_ratio = 0.25
         self.logger.debug(
-            "Initialized Randomness: percentage=%.2f tracks=%s playlist=%s out_collection=%s",
+            "Initialized Randomness: percentage=%.2f tracks=%s  out_collection=%s",
             self.artist_sampling_ratio,
-            self.tracks_coll.name,
-            self.playlist_coll.name,
+            self.db.tracks_coll_name,
             self.db.playlist_coll_name,
         )
 
@@ -47,7 +44,7 @@ class Randomness:
             {"$group": {"_id": "$artists._id"}},
             {"$project": {"_id": 1}},
         ]
-        cursor = self.tracks_coll.aggregate(pipeline)
+        cursor = self.db.get_tracks_coll().aggregate(pipeline)
         result = [doc["_id"] for doc in cursor]
         cursor.close()
         self.logger.debug("Found %d distinct artist IDs", len(result))
@@ -69,10 +66,16 @@ class Randomness:
                     "created_at": {"$first": datetime.now(timezone.utc)},
                 }
             },
-            {"$out": self.db.playlist_coll_name},
+            {
+                "$merge": {
+                    "into": self.db.playlist_coll_name,
+                    "whenMatched": "keepExisting",
+                    "whenNotMatched": "insert",
+                }
+            },
         ]
 
-        cursor = self.tracks_coll.aggregate(pipeline)
+        cursor = self.db.get_tracks_coll().aggregate(pipeline)
         cursor.close()
 
     def get_random_artists(self, no_items: int) -> None:
@@ -93,10 +96,16 @@ class Randomness:
                     "created_at": {"$first": datetime.now(timezone.utc)},
                 }
             },
-            {"$out": self.db.playlist_coll_name},
+            {
+                "$merge": {
+                    "into": self.db.playlist_coll_name,
+                    "whenMatched": "keepExisting",
+                    "whenNotMatched": "insert",
+                }
+            },
         ]
 
-        cursor = self.tracks_coll.aggregate(pipeline)
+        cursor = self.db.get_tracks_coll().aggregate(pipeline)
         cursor.close()
 
     def validate_item_count(self, no_items: int) -> None:
