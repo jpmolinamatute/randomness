@@ -4,14 +4,14 @@ After=network.target
 Wants=network-online.target
 
 [Service]
-User=juanpa
-Group=juanpa
-WorkingDirectory=/home/juanpa/Projects/randomness
+User=APP_USER
+Group=APP_USER
+WorkingDirectory=REPO_DIR
 
-# Environment variables (permissions 600, owned by juanpa)
-EnvironmentFile=/home/juanpa/Projects/randomness/.env
+# Environment variables (permissions 600, owned by APP_USER)
+EnvironmentFile=REPO_DIR/.env
 Type=oneshot
-ExecStart=/home/juanpa/Projects/randomness/scripts/daemon.bash
+ExecStart=REPO_DIR/scripts/daemon.bash
 TimeoutStartSec=300
 
 # No restart needed for a short-lived batch job

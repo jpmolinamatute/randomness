@@ -2,28 +2,32 @@
 import sys
 import logging
 import argparse
+import asyncio
 
 from dotenv import load_dotenv
 
-from spotify import DB, Auth, Client, Randomness
+from spotify import DB, Auth, Client
 
 
-def run(args: argparse.Namespace, logger: logging.Logger) -> None:
+async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
     my_mongo = DB()
     if not my_mongo.check_connection():
         raise ConnectionError("MongoDB is not available")
 
     sp_auth = Auth()
     sp_client = Client(sp_auth, my_mongo)
-    randomness = Randomness(my_mongo)
 
     if args.get_all_playlists:
-        sp_client.get_all_playlists()
+        await sp_client.get_all_playlists()
         return
 
-    if args.update_cache or my_mongo.count_track({}) == 0:
-        logger.info("Updating local cache of liked tracks from Spotify API...")
-        sp_client.get_all_liked_tracks()
+    if args.update_cache:
+        logger.info("Updating local cache of liked tracks")
+        my_mongo.reset_collection(my_mongo.tracks_coll_name)
+        await sp_client.get_all_liked_tracks()
+    elif my_mongo.count_track({}) == 0:
+        logger.info("Populating local cache of liked tracks")
+        await sp_client.get_all_liked_tracks()
     else:
         logger.info("Skipping cache update; using existing liked tracks from DB")
 
@@ -32,18 +36,19 @@ def run(args: argparse.Namespace, logger: logging.Logger) -> None:
         my_mongo.close()
         return
 
-    sp_client.delete_all_playlist_tracks()
-    randomness.generate_random_playlist("track", 100)
-    sp_client.populate_playlist_from_db()
-    sp_client.update_queue()
+    await sp_client.delete_all_playlist_tracks()
+    my_mongo.generate_random_playlist("track", 100)
+    await sp_client.populate_playlist_from_db()
+    await sp_client.update_queue()
     my_mongo.close()
 
 
 def main() -> None:
     load_dotenv()
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     logging.getLogger("urllib3").setLevel(logging.INFO)
     logging.getLogger("pymongo").setLevel(logging.INFO)
+    logging.getLogger("httpcore").setLevel(logging.INFO)
     logger = logging.getLogger("main")
     parser = argparse.ArgumentParser(description="Refresh Spotify playlist with randomness.")
     parser.add_argument(
@@ -66,7 +71,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     try:
-        run(args, logger)
+        asyncio.run(run(args, logger))
     except KeyboardInterrupt:
         sys.exit(1)
     except Exception as e:
