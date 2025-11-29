@@ -85,4 +85,34 @@ docker compose -f docker/docker-compose.yaml down
 
 The `--update-cache` flag forces a refresh of your Liked Songs cache from the Spotify API before generating the playlist. If you omit it, the app will use the existing cache stored in MongoDB; if the cache is empty, it will update automatically.
 
+## About `--export`
+
+The `--export` flag allows you to export your cached Liked Songs to a JSON file. This is useful for backing up your data or inspecting the contents of your local cache. When this flag is used, the app will perform the export and then exit without generating a playlist.
+
+## About `--get-all-playlists`
+
+The `--get-all-playlists` flag fetches and lists all your Spotify playlists. This can be helpful if you need to find the ID of a specific playlist to use in your `.env` file. Like the export flag, the app will exit after completing this action.
+
+## Development & Quality Assurance
+
+To ensure code quality, this project includes a linter script located at `scripts/linter.bash`. This script runs the following tools:
+
+- **isort**: Sorts imports.
+- **black**: Formats code.
+- **mypy**: Performs static type checking.
+- **pylint**: Analyzes code for errors and quality.
+- **pytest**: Runs the test suite.
+
+### Setting up the pre-commit Hook
+
+It is recommended to set up this script as a Git pre-commit hook. This ensures that all checks pass before you can commit any changes.
+
+To set up the hook, run the following command from the project root:
+
+```sh
+ln -sfr ./scripts/linter.bash ./.git/hooks/pre-commit
+```
+
+Now, whenever you run `git commit`, the linter script will execute automatically. If any check fails, the commit will be aborted, allowing you to fix the issues.
+
 ## Enjoy
