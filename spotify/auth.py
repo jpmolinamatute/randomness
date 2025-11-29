@@ -63,7 +63,6 @@ class Auth:
             self.SCOPE,
             bool(self.secrets.state),
         )
-        self.load_or_authenticate_tokens()
 
     @property
     def redirect_uri(self) -> str:
@@ -227,7 +226,7 @@ class Auth:
             return None
         raise TokenError(f"Error refreshing access token: {response_data}")
 
-    def load_or_authenticate_tokens(self) -> None:
+    async def load_or_authenticate_tokens(self) -> None:
         self.logger.debug("Initializing token data: attempting to load stored tokens")
         try:
             token_data = Token()
@@ -244,7 +243,7 @@ class Auth:
             )
             if self.is_token_expired():
                 # Run async refresh in sync context
-                asyncio.run(self.refresh_access_token())
+                await self.refresh_access_token()
         except TokenError:
             self.logger.debug("No valid stored tokens found; starting authentication flow")
             self.start_auth_flow()
