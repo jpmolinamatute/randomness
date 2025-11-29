@@ -15,6 +15,7 @@ async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
         raise ConnectionError("MongoDB is not available")
 
     sp_auth = Auth()
+    await sp_auth.load_or_authenticate_tokens()
     sp_client = Client(sp_auth, my_mongo)
 
     if args.get_all_playlists:
@@ -50,7 +51,22 @@ def main() -> None:
     logging.getLogger("pymongo").setLevel(logging.INFO)
     logging.getLogger("httpcore").setLevel(logging.INFO)
     logger = logging.getLogger("main")
-    parser = argparse.ArgumentParser(description="Refresh Spotify playlist with randomness.")
+    parser = argparse.ArgumentParser(
+        description="Refresh Spotify playlist with randomness.\n\n"
+        "This tool allows you to manage your Spotify playlists by generating random playlists "
+        "from your liked tracks. It also supports exporting your liked tracks and listing all "
+        "your playlists.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="examples:\n"
+        "  # Generate a random playlist (default behavior)\n"
+        "  ./main.py\n\n"
+        "  # Update local cache from Spotify before generating\n"
+        "  ./main.py --update-cache\n\n"
+        "  # Export liked tracks to a JSON file\n"
+        "  ./main.py --export\n\n"
+        "  # List all your Spotify playlists\n"
+        "  ./main.py --get-all-playlists",
+    )
     parser.add_argument(
         "--update-cache",
         action="store_true",

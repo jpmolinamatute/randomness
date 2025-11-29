@@ -43,9 +43,17 @@ MONGO_INITDB_ROOT_PASSWORD=supersecret
 MONGO_INITDB_DATABASE=randomness
 ```
 
+## Install dependencies
+
+Install project dependencies and create a local virtualenv (managed by uv):
+
+```sh
+uv sync
+```
+
 ## Start MongoDB with Docker Compose
 
-This project uses MongoDB. Bring it up/down with Docker Compose using the provided file.
+This project uses MongoDB and it's a REQUIREMENT in order to run the app. Bring it up/down with Docker Compose using the provided file.
 
 Start MongoDB (detached):
 
@@ -59,37 +67,26 @@ Stop MongoDB and remove containers:
 docker compose -f docker/docker-compose.yaml down
 ```
 
-## Install and Run with uv
+## Run the app
 
-1. Install project dependencies and create a local virtualenv (managed by uv):
+main.py is a executable script that will run the app and needs to run inside the virtual environment.
 
-   ```sh
-   uv sync
-   ```
+```sh
+. ./.venv/bin/activate
+./main.py
+```
 
-2. Run the app using the managed environment:
+## App flags
 
-   ```sh
-   . ./.venv/bin/activate
-   ./main.py
-   ```
-
-   You can also pass flags, for example:
-
-   ```sh
-   . ./.venv/bin/activate
-   ./main.py --update-cache
-   ```
-
-## About `--update-cache`
+### `--update-cache`
 
 The `--update-cache` flag forces a refresh of your Liked Songs cache from the Spotify API before generating the playlist. If you omit it, the app will use the existing cache stored in MongoDB; if the cache is empty, it will update automatically.
 
-## About `--export`
+### `--export`
 
 The `--export` flag allows you to export your cached Liked Songs to a JSON file. This is useful for backing up your data or inspecting the contents of your local cache. When this flag is used, the app will perform the export and then exit without generating a playlist.
 
-## About `--get-all-playlists`
+### `--get-all-playlists`
 
 The `--get-all-playlists` flag fetches and lists all your Spotify playlists. This can be helpful if you need to find the ID of a specific playlist to use in your `.env` file. Like the export flag, the app will exit after completing this action.
 
