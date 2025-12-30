@@ -1,0 +1,82 @@
+name: Backend Type Check, Linting & Formatting
+
+on:
+  pull_request:
+    paths:
+      - spotify/*.py
+      - tests/*.py
+      - pyproject.toml
+      - .github/workflows/backend_linting.yaml
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set uv & Install Dependencies
+        uses: ./.github/actions/uv-setup
+      - name: Run ruff check
+        run: |
+          source ./.venv/bin/activate
+          ruff check --no-cache --config ./pyproject.toml ./spotify ./tests
+
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set uv & Install Dependencies
+        uses: ./.github/actions/uv-setup
+      - name: Run ruff format
+        run: |
+          source ./.venv/bin/activate
+          ruff format --check --no-cache --config ./pyproject.toml ./spotify ./tests
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set uv & Install Dependencies
+        uses: ./.github/actions/uv-setup
+      - name: Run mypy
+        run: |
+          source ./.venv/bin/activate
+          mypy --config-file ./pyproject.toml ./spotify ./tests
+
+  tests:
+    runs-on: ubuntu-latest
+    needs:
+      - linting
+      - formatting
+      - mypy
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: not_a_real_user
+          MONGO_INITDB_ROOT_PASSWORD: not_a_real_password
+          MONGO_INITDB_DATABASE: spotify_randomness
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set uv & Install Dependencies
+        uses: ./.github/actions/uv-setup
+      - name: Run Tests
+        env:
+          MONGO_INITDB_ROOT_USERNAME: not_a_real_user
+          MONGO_INITDB_ROOT_PASSWORD: not_a_real_password
+          MONGO_INITDB_DATABASE: spotify_randomness
+        run: |
+          source ./.venv/bin/activate
+          pytest --maxfail=1 --disable-warnings -q

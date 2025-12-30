@@ -5,6 +5,9 @@ import pytest
 
 from spotify.client import Client
 
+EXPECTED_TRACKS_COUNT = 2
+EXPECTED_DELETE_COUNT = 3
+
 
 @pytest.mark.asyncio
 async def test_get_available_device_id(client_instance: Client) -> None:
@@ -119,7 +122,7 @@ async def test_get_all_liked_tracks(client_instance: Client) -> None:
         assert mock_db_insert.called
         # We expect 2 tracks to be inserted
         _, _ = mock_db_insert.call_args
-        assert len(mock_db_insert.call_args[0][0]) == 2
+        assert len(mock_db_insert.call_args[0][0]) == EXPECTED_TRACKS_COUNT
         assert mock_db_insert.call_args[0][0][0]["uri"] == "spotify:track:1"
 
 
@@ -144,7 +147,7 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
         _, kwargs = mock_request.call_args
         assert mock_request.call_args[0][0] == "DELETE"
         assert "tracks" in kwargs["json"]
-        assert len(kwargs["json"]["tracks"]) == 3
+        assert len(kwargs["json"]["tracks"]) == EXPECTED_DELETE_COUNT
 
 
 @pytest.mark.asyncio

@@ -20,14 +20,12 @@ main() {
     # export PYTHONPATH="${ROOT_DIR}/spotify"
     # shellcheck source=../.venv/bin/activate
     source "${ROOT_DIR}/.venv/bin/activate"
-    log_info "Running isort..."
-    isort --settings-file "${pyproject_path}" "${ROOT_DIR}/spotify" "${ROOT_DIR}/tests"
-    log_info "Running black..."
-    black --config "${pyproject_path}" "${ROOT_DIR}/spotify" "${ROOT_DIR}/tests"
     log_info "Running mypy..."
     mypy --config-file "${pyproject_path}" "${ROOT_DIR}/spotify" "${ROOT_DIR}/tests"
-    log_info "Running pylint..."
-    pylint --rcfile "${pyproject_path}" "${ROOT_DIR}/spotify" "${ROOT_DIR}/tests"
+    log_info "Running ruff check --fix..."
+    ruff check --fix --config "${pyproject_path}" "${ROOT_DIR}/spotify" "${ROOT_DIR}/tests"
+    log_info "Running ruff format..."
+    ruff format --config "${pyproject_path}" "${ROOT_DIR}/spotify" "${ROOT_DIR}/tests"
     run_pytest
 }
 

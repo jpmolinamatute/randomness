@@ -2,8 +2,9 @@ import json
 import logging
 import random
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from os import environ
+from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
@@ -12,8 +13,9 @@ from pymongo.collection import Collection
 
 from spotify.types import RandomnessType
 
-
 type CollType = dict[str, Any]
+
+MAX_PLAYLIST_ITEMS = 100
 
 
 class DB:
@@ -130,7 +132,7 @@ class DB:
             export_data.append(data)
 
         filename = f"export-{date.today()}.json"
-        with open(filename, "w", encoding="utf-8") as f:
+        with Path(filename).open("w", encoding="utf-8") as f:
             json.dump(export_data, f, indent=4)
 
         self.logger.info("Exported %d tracks to %s", len(export_data), filename)
@@ -154,8 +156,8 @@ class DB:
             raise ValueError("Number of items must be an integer")
         if no_items < 1:
             raise ValueError("Number of items must be greater than 0")
-        if no_items > 100:
-            raise ValueError("Number of items must be less than or equal to 100")
+        if no_items > MAX_PLAYLIST_ITEMS:
+            raise ValueError(f"Number of items must be less than or equal to {MAX_PLAYLIST_ITEMS}")
         # Use DB-level count_documents to align with test mocks.
         max_no_item = self.count_track({})
         self.logger.debug("Max items available according to DB: %s", max_no_item)
@@ -196,7 +198,7 @@ class DB:
                 "$group": {
                     "_id": ObjectId(),
                     "tracks": {"$push": "$$ROOT"},
-                    "created_at": {"$first": datetime.now(timezone.utc)},
+                    "created_at": {"$first": datetime.now(UTC)},
                 }
             },
             {
@@ -219,14 +221,15 @@ class DB:
         self.logger.debug(
             "Artist sampling: total_artists=%d selected=%d", len(all_artists), len(some_artists)
         )
+        excluded_uris = self.get_recent_playlist_uris()
         pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {"artists._id": {"$in": some_artists}}},
+            {"$match": {"artists._id": {"$in": some_artists}, "uri": {"$nin": excluded_uris}}},
             {"$sample": {"size": no_items}},
             {
                 "$group": {
                     "_id": ObjectId(),
                     "tracks": {"$push": "$$ROOT"},
-                    "created_at": {"$first": datetime.now(timezone.utc)},
+                    "created_at": {"$first": datetime.now(UTC)},
                 }
             },
             {

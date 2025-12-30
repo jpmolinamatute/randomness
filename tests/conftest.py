@@ -2,10 +2,13 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from dotenv import load_dotenv
 
 from spotify.auth import Auth
 from spotify.client import Client
 from spotify.db import DB
+
+load_dotenv()
 
 
 def _setup_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -14,8 +17,9 @@ def _setup_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "fake_client_secret")
     monkeypatch.setenv("SPOTIFY_STATE", "fake_state")
     monkeypatch.setenv("SPOTIFY_PLAYLIST_ID", "fake_playlist_id")
-    monkeypatch.setenv("MONGO_URI", "mongodb://localhost:27017")
-    monkeypatch.setenv("MONGO_DB_NAME", "test_db")
+    # We want to use the real environment variables for the DB connection
+    # but we want to make sure we are using a test database.
+    monkeypatch.setenv("MONGO_INITDB_DATABASE", "test_db")
 
 
 @pytest.fixture

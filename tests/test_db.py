@@ -6,6 +6,9 @@ import pytest
 
 from spotify.db import DB
 
+EXPECTED_RANDOM_COUNT = 2
+TEST_PLAYLIST_SIZE = 5
+
 
 @pytest.fixture
 def db_instance(monkeypatch: pytest.MonkeyPatch) -> DB:
@@ -70,7 +73,7 @@ def test_randomize(db_instance: DB) -> None:
     sample = ["a", "b", "c", "d", "e", "f", "g", "h"]
     # ratio is 0.25, so 8 * 0.25 = 2 items
     result = db_instance._randomize(sample)
-    assert len(result) == 2
+    assert len(result) == EXPECTED_RANDOM_COUNT
     for item in result:
         assert item in sample
 
@@ -154,7 +157,7 @@ def test_export_to_json(db_instance: DB) -> None:
         {"_id": "id1", "href": "href1", "name": "Track 1", "artists": [{"name": "Artist 1"}]}
     ]
 
-    with patch("builtins.open", mock_open()) as mock_file:
+    with patch("pathlib.Path.open", mock_open()) as mock_file:
         with patch("json.dump") as mock_json_dump:
             db_instance.export_to_json()
 
@@ -187,7 +190,7 @@ def test_validate_item_count(db_instance: DB) -> None:
     # Mock count_track to return 200 (enough for max check)
     with patch.object(db_instance, "count_track", return_value=200):
         # Valid count
-        db_instance.validate_item_count(5)
+        db_instance.validate_item_count(TEST_PLAYLIST_SIZE)
 
         # Invalid types/values
         with pytest.raises(ValueError, match="must be an integer"):
@@ -213,7 +216,7 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
         with patch.object(
             db_instance, "get_recent_playlist_uris", return_value=["uri_ex1", "uri_ex2"]
         ):
-            db_instance.generate_random_playlist("track", 5)
+            db_instance.generate_random_playlist("track", TEST_PLAYLIST_SIZE)
 
             # Verify aggregate called on tracks collection
             # Note: get_tracks_coll is called, which calls mongo_db['tracks']
@@ -223,7 +226,7 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
 
             # Verify exclusion logic
             assert pipeline[0]["$match"]["uri"]["$nin"] == ["uri_ex1", "uri_ex2"]
-            assert pipeline[1]["$sample"]["size"] == 5
+            assert pipeline[1]["$sample"]["size"] == TEST_PLAYLIST_SIZE
             assert pipeline[3]["$merge"]["into"] == "playlist"
 
 
@@ -237,16 +240,16 @@ def test_generate_random_playlist_artist(db_instance: DB) -> None:
         with patch.object(db_instance, "get_artist_ids", return_value=["a1", "a2", "a3", "a4"]):
             # Mock _randomize to return a subset
             with patch.object(db_instance, "_randomize", return_value=["a1", "a2"]):
-                db_instance.generate_random_playlist("artist", 5)
+                db_instance.generate_random_playlist("artist", TEST_PLAYLIST_SIZE)
 
                 mock_coll.aggregate.assert_called_once()
                 pipeline = mock_coll.aggregate.call_args[0][0]
                 assert pipeline[0]["$match"]["artists._id"]["$in"] == ["a1", "a2"]
-                assert pipeline[1]["$sample"]["size"] == 5
+                assert pipeline[1]["$sample"]["size"] == TEST_PLAYLIST_SIZE
 
 
 def test_generate_random_playlist_invalid(db_instance: DB) -> None:
     """Test generate_random_playlist with invalid type."""
     with patch.object(db_instance, "validate_item_count"):
         with pytest.raises(ValueError, match="Invalid item type"):
-            db_instance.generate_random_playlist("invalid", 5)  # type: ignore
+            db_instance.generate_random_playlist("invalid", TEST_PLAYLIST_SIZE)  # type: ignore

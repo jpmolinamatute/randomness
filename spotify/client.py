@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from http import HTTPStatus
 from os import environ
 from typing import Any
 
@@ -12,6 +13,7 @@ from spotify.schema import LikedTracksResponse, Track
 
 class Client:
     TIMEOUT = 15
+    MAX_LOG_URL_LENGTH = 120
     ME_BATCH_SIZE = 50
     BATCH_SIZE = 100
     MAX_CONCURRENT_REQUESTS = 5
@@ -37,7 +39,10 @@ class Client:
 
     def describe_paging_window(self, url: str) -> str:
         self.logger.debug(
-            "Parsing batch window from URL: %s", url if len(url) <= 120 else url[:117] + "..."
+            "Parsing batch window from URL: %s",
+            url
+            if len(url) <= self.MAX_LOG_URL_LENGTH
+            else url[: self.MAX_LOG_URL_LENGTH - 3] + "...",
         )
         temp_list = url.split("?")[1].split("&")
         from_value = 0
@@ -101,7 +106,7 @@ class Client:
 
         while True:
             response = await client.get(url, headers=headers, timeout=self.TIMEOUT)
-            if response.status_code == 429:
+            if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 retry_after = int(response.headers.get("Retry-After", 1))
                 self.logger.warning("Rate limit hit. Retrying after %s seconds", retry_after)
                 await asyncio.sleep(retry_after)
