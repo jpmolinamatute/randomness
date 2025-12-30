@@ -154,12 +154,30 @@ class DB:
             raise ValueError("Number of items must be an integer")
         if no_items < 1:
             raise ValueError("Number of items must be greater than 0")
+        if no_items > 100:
+            raise ValueError("Number of items must be less than or equal to 100")
         # Use DB-level count_documents to align with test mocks.
         max_no_item = self.count_track({})
         self.logger.debug("Max items available according to DB: %s", max_no_item)
 
         if max_no_item and no_items > max_no_item:
             raise ValueError(f"Number of items must be less than {max_no_item}")
+
+    def get_recent_playlist_uris(self, limit: int = 3) -> list[str]:
+        """Get URIs from the last `limit` playlists to avoid repetition."""
+        self.logger.debug("Fetching last %d playlists for exclusion", limit)
+        recent_playlists = self.get_playlist_coll().find(
+            {},
+            projection={"tracks.uri": 1, "_id": 0},
+            sort=[("created_at", -1)],
+            limit=limit,
+        )
+        excluded_uris = []
+        for playlist in recent_playlists:
+            # Extract URIs from nested tracks list
+            excluded_uris.extend([t.get("uri") for t in playlist.get("tracks", []) if t.get("uri")])
+        self.logger.info("Found %d tracks to exclude from recent playlists", len(excluded_uris))
+        return excluded_uris
 
     def generate_random_tracks(self, no_items: int) -> None:
         self.logger.debug(
@@ -168,7 +186,11 @@ class DB:
             self.playlist_coll_name,
         )
         self.logger.info("Generating a playlist with %d items and by random tracks", no_items)
+
+        excluded_uris = self.get_recent_playlist_uris()
+
         pipeline: Sequence[Mapping[str, Any]] = [
+            {"$match": {"uri": {"$nin": excluded_uris}}},
             {"$sample": {"size": no_items}},
             {
                 "$group": {

@@ -184,8 +184,8 @@ def test_get_artist_ids(db_instance: DB) -> None:
 
 def test_validate_item_count(db_instance: DB) -> None:
     """Test validate_item_count method."""
-    # Mock count_track to return 10
-    with patch.object(db_instance, "count_track", return_value=10):
+    # Mock count_track to return 200 (enough for max check)
+    with patch.object(db_instance, "count_track", return_value=200):
         # Valid count
         db_instance.validate_item_count(5)
 
@@ -196,8 +196,11 @@ def test_validate_item_count(db_instance: DB) -> None:
         with pytest.raises(ValueError, match="must be greater than 0"):
             db_instance.validate_item_count(0)
 
+        with pytest.raises(ValueError, match="Number of items must be less than or equal to 100"):
+            db_instance.validate_item_count(101)
+
         with pytest.raises(ValueError, match="must be less than"):
-            db_instance.validate_item_count(15)
+            db_instance.validate_item_count(250)
 
 
 def test_generate_random_playlist_track(db_instance: DB) -> None:
@@ -207,15 +210,21 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
     mock_db.__getitem__.return_value = mock_coll
 
     with patch.object(db_instance, "validate_item_count"):
-        db_instance.generate_random_playlist("track", 5)
+        with patch.object(
+            db_instance, "get_recent_playlist_uris", return_value=["uri_ex1", "uri_ex2"]
+        ):
+            db_instance.generate_random_playlist("track", 5)
 
-        # Verify aggregate called on tracks collection
-        # Note: get_tracks_coll is called, which calls mongo_db['tracks']
-        # We need to ensure the mock returned by getitem is used
-        mock_coll.aggregate.assert_called_once()
-        pipeline = mock_coll.aggregate.call_args[0][0]
-        assert pipeline[0]["$sample"]["size"] == 5
-        assert pipeline[2]["$merge"]["into"] == "playlist"
+            # Verify aggregate called on tracks collection
+            # Note: get_tracks_coll is called, which calls mongo_db['tracks']
+            # We need to ensure the mock returned by getitem is used
+            mock_coll.aggregate.assert_called_once()
+            pipeline = mock_coll.aggregate.call_args[0][0]
+
+            # Verify exclusion logic
+            assert pipeline[0]["$match"]["uri"]["$nin"] == ["uri_ex1", "uri_ex2"]
+            assert pipeline[1]["$sample"]["size"] == 5
+            assert pipeline[3]["$merge"]["into"] == "playlist"
 
 
 def test_generate_random_playlist_artist(db_instance: DB) -> None:
