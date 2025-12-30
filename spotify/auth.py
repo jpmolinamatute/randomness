@@ -3,6 +3,7 @@ import logging
 import threading
 import time
 import webbrowser
+from http import HTTPStatus
 from os import environ
 from typing import Any, TypedDict
 
@@ -160,7 +161,7 @@ class Auth:
                 self.TOKEN_URL, headers=headers, data=data, timeout=self.TIMEOUT
             )
         response_data = response.json()
-        if response.status_code != 200:
+        if response.status_code != HTTPStatus.OK:
             raise TokenError(f"Error obtaining access token: {response_data}")
         return self.build_and_store_token(response_data, self.credentials.refresh_token)
 
@@ -218,7 +219,7 @@ class Auth:
                 self.TOKEN_URL, headers=headers, data=data, timeout=self.TIMEOUT
             )
         response_data = response.json()
-        if response.status_code == 200:
+        if response.status_code == HTTPStatus.OK:
             return self.build_and_store_token(response_data, self.credentials.refresh_token)
         if response_data.get("error") == "invalid_grant":
             self.logger.error("Refresh token revoked, re-authenticating...")

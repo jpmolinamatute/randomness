@@ -38,7 +38,7 @@ class Token(BaseModel):
         if not self._file_path.exists():
             raise TokenError("Token file not found")
         try:
-            with open(self._file_path, "r", encoding="utf-8") as file:
+            with self._file_path.open(encoding="utf-8") as file:
                 token_data: dict[str, Any] = json.load(file)
         except Exception as exc:  # noqa: BLE001
             raise TokenError(f"Failed reading token file: {exc}") from exc
@@ -57,7 +57,7 @@ class Token(BaseModel):
             "token_expires_at": self.token_expires_at,
         }
         try:
-            with open(self._file_path, "w", encoding="utf-8") as file:
+            with self._file_path.open("w", encoding="utf-8") as file:
                 json.dump(token_data, file, indent=4)
         except Exception as exc:  # noqa: BLE001
             raise TokenError(f"Failed storing token file: {exc}") from exc

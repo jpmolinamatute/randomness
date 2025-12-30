@@ -4,7 +4,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from spotify.types import ReasonType, TypeType
 
-
 # Spotify response sample for GET https://api.spotify.com/v1/me/tracks requests
 # {
 #   "href": "https://api.spotify.com/v1/me/shows?offset=0&limit=20",
