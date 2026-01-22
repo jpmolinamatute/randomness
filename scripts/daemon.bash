@@ -34,9 +34,9 @@ main(){
     start_docker
     # shellcheck source=../.venv/bin/activate
     source "${ROOT_DIR}/.venv/bin/activate"
-    "${ROOT_DIR}/main.py"
+    "${ROOT_DIR}/main.py" "${@}"
     stop_docker
     exit 0
 }
 
-main "$@"
+main "${@}"
