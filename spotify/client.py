@@ -5,6 +5,7 @@ from os import environ
 from typing import Any
 
 import httpx
+from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponential
 
 from spotify.auth import Auth
 from spotify.db import DB
@@ -91,6 +92,15 @@ class Client:
 
         self.db.insert_tracks(new_tracks)
 
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(5),
+        retry=retry_if_result(lambda r: r.status_code == HTTPStatus.TOO_MANY_REQUESTS),
+    )
+    async def _make_request(self, client: httpx.AsyncClient, url: str) -> httpx.Response:
+        headers = await self._get_headers()
+        return await client.get(url, headers=headers, timeout=self.TIMEOUT)
+
     async def fetch_tracks_batch(
         self, client: httpx.AsyncClient, url: str, msg: str
     ) -> LikedTracksResponse:
@@ -100,20 +110,12 @@ class Client:
             msg,
             self.TIMEOUT,
         )
-        headers = await self._get_headers()
+
         human_readable = self.describe_paging_window(url)
         self.logger.info("Getting batch of %s tracks %s", msg, human_readable)
 
-        while True:
-            response = await client.get(url, headers=headers, timeout=self.TIMEOUT)
-            if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                retry_after = int(response.headers.get("Retry-After", 1))
-                self.logger.warning("Rate limit hit. Retrying after %s seconds", retry_after)
-                await asyncio.sleep(retry_after)
-                continue
-
-            response.raise_for_status()
-            break
+        response = await self._make_request(client, url)
+        response.raise_for_status()
         response_data = response.json()
         if "tracks" in response_data:
             response_data = response_data["tracks"]
