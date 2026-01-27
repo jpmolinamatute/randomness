@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from os import environ
 from typing import Any
@@ -97,9 +98,23 @@ class Client:
         stop=stop_after_attempt(5),
         retry=retry_if_result(lambda r: r.status_code == HTTPStatus.TOO_MANY_REQUESTS),
     )
-    async def _make_request(self, client: httpx.AsyncClient, url: str) -> httpx.Response:
+    async def _make_get_request(self, client: httpx.AsyncClient, url: str) -> httpx.Response:
         headers = await self._get_headers()
         return await client.get(url, headers=headers, timeout=self.TIMEOUT)
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(5),
+        retry=retry_if_result(lambda r: r.status_code == HTTPStatus.TOO_MANY_REQUESTS),
+    )
+    async def _make_delete_request(
+        self, client: httpx.AsyncClient, url: str, json_data: dict[str, Any]
+    ) -> httpx.Response:
+        headers = await self._get_headers()
+        headers["Content-Type"] = "application/json"
+        return await client.request(
+            "DELETE", url, headers=headers, json=json_data, timeout=self.TIMEOUT
+        )
 
     async def fetch_tracks_batch(
         self, client: httpx.AsyncClient, url: str, msg: str
@@ -114,7 +129,7 @@ class Client:
         human_readable = self.describe_paging_window(url)
         self.logger.info("Getting batch of %s tracks %s", msg, human_readable)
 
-        response = await self._make_request(client, url)
+        response = await self._make_get_request(client, url)
         response.raise_for_status()
         response_data = response.json()
         if "tracks" in response_data:
@@ -139,12 +154,8 @@ class Client:
     async def delete_with_sem(
         self, client: httpx.AsyncClient, sem: asyncio.Semaphore, url: str, json_data: dict[str, Any]
     ) -> httpx.Response:
-        headers = await self._get_headers()
-        headers["Content-Type"] = "application/json"
         async with sem:
-            return await client.request(
-                "DELETE", url, headers=headers, json=json_data, timeout=self.TIMEOUT
-            )
+            return await self._make_delete_request(client, url, json_data)
 
     async def get_all_liked_tracks(self) -> None:
         self.logger.debug("Starting retrieval of all liked tracks")
@@ -176,27 +187,56 @@ class Client:
 
         self.logger.debug("Completed retrieval of liked tracks")
 
+    async def _yield_playlist_tracks_batches(
+        self, client: httpx.AsyncClient
+    ) -> AsyncGenerator[list[str]]:
+        """Yield batches of track URIs from the playlist, always fetching from offset 0."""
+        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
+        while True:
+            # Always fetch from offset 0 because we delete the previous batch
+            batch_url = f"{url}?offset=0&limit={self.BATCH_SIZE}"
+            try:
+                # We reuse fetch_tracks_batch but need to be careful with the 'next' url
+                # actually fetch_tracks_batch does GET.
+                response_data = await self.fetch_tracks_batch(client, batch_url, "playlist_tracks")
+                items = response_data.items
+                if not items:
+                    break
+
+                uris = [item.track.uri for item in items if item.track]
+                if not uris:
+                    break
+
+                yield uris
+
+                # If we got fewer than BATCH_SIZE, we are effectively done after this delete
+                # But safer to just loop until empty list returned?
+                # If we rely on valid 'total', we might stop early.
+                # But 'fetch_tracks_batch' returns a parsed object.
+                if len(items) < self.BATCH_SIZE:
+                    break
+
+            except Exception:
+                self.logger.exception("Error fetching playlist tracks batch")
+                break
+
     async def delete_all_playlist_tracks(self) -> None:
         self.logger.debug("Deleting playlist content: playlist_id=%s", self.spotify_playlist_id)
         self.logger.info("Deleting playlist content")
         url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
 
-        uri_list = self.read_latest_playlist_track_uris()
-        self.logger.debug("Tracks to remove: total=%d", len(uri_list))
-
-        # Remove tracks in batches of self.BATCH_SIZE (Spotify API limit)
         async with httpx.AsyncClient() as client:
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
 
-            tasks = []
-            for i in range(0, len(uri_list), self.BATCH_SIZE):
-                batch = uri_list[i : i + self.BATCH_SIZE]
-                self.logger.debug("Deleting batch: size=%d index=%d", len(batch), i)
-                data = {"tracks": [{"uri": uri} for uri in batch]}
-                tasks.append(self.delete_with_sem(client, sem, url, data))
-            responses = await asyncio.gather(*tasks)
-            for response in responses:
-                response.raise_for_status()
+            # Use async generator to process batches
+            async for batch_uris in self._yield_playlist_tracks_batches(client):
+                self.logger.debug("Deleting batch: size=%d", len(batch_uris))
+                data = {"tracks": [{"uri": uri} for uri in batch_uris]}
+                try:
+                    await self.delete_with_sem(client, sem, url, data)
+                except Exception:
+                    self.logger.exception("Failed to delete batch")
+                    raise
 
     async def populate_playlist_from_db(self) -> None:
         self.logger.debug(
