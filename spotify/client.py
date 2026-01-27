@@ -112,7 +112,9 @@ class Client:
     ) -> httpx.Response:
         headers = await self._get_headers()
         headers["Content-Type"] = "application/json"
-        return await client.request("DELETE", url, headers=headers, json=json_data, timeout=self.TIMEOUT)
+        return await client.request(
+            "DELETE", url, headers=headers, json=json_data, timeout=self.TIMEOUT
+        )
 
     async def fetch_tracks_batch(
         self, client: httpx.AsyncClient, url: str, msg: str
@@ -204,9 +206,9 @@ class Client:
                 uris = [item.track.uri for item in items if item.track]
                 if not uris:
                     break
-                    
+
                 yield uris
-                
+
                 # If we got fewer than BATCH_SIZE, we are effectively done after this delete
                 # But safer to just loop until empty list returned?
                 # If we rely on valid 'total', we might stop early.
@@ -225,16 +227,16 @@ class Client:
 
         async with httpx.AsyncClient() as client:
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
-            
+
             # Use async generator to process batches
             async for batch_uris in self._yield_playlist_tracks_batches(client):
-                 self.logger.debug("Deleting batch: size=%d", len(batch_uris))
-                 data = {"tracks": [{"uri": uri} for uri in batch_uris]}
-                 try:
-                     await self.delete_with_sem(client, sem, url, data)
-                 except Exception:
-                      self.logger.exception("Failed to delete batch")
-                      raise
+                self.logger.debug("Deleting batch: size=%d", len(batch_uris))
+                data = {"tracks": [{"uri": uri} for uri in batch_uris]}
+                try:
+                    await self.delete_with_sem(client, sem, url, data)
+                except Exception:
+                    self.logger.exception("Failed to delete batch")
+                    raise
 
     async def populate_playlist_from_db(self) -> None:
         self.logger.debug(

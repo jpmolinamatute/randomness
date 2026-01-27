@@ -11,7 +11,7 @@ from bson import ObjectId
 from pymongo import MongoClient
 from pymongo.collection import Collection
 
-from spotify.types import RandomnessType
+from spotify.custom_types import RandomnessType
 
 type CollType = dict[str, Any]
 

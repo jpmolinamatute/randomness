@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from spotify.types import ReasonType, TypeType
+from spotify.custom_types import ReasonType, TypeType
 
 # Spotify response sample for GET https://api.spotify.com/v1/me/tracks requests
 # {

@@ -10,6 +10,7 @@ EXPECTED_TRACKS_COUNT = 2
 EXPECTED_DELETE_COUNT = 3
 EXPECTED_FETCH_CALLS = 2
 
+
 @pytest.mark.asyncio
 async def test_get_available_device_id(client_instance: Client) -> None:
     """Test getting available device ID."""
@@ -127,9 +128,6 @@ async def test_get_all_liked_tracks(client_instance: Client) -> None:
         assert mock_db_insert.call_args[0][0][0]["uri"] == "spotify:track:1"
 
 
-
-
-
 @pytest.mark.asyncio
 async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
     """Test deleting all tracks from playlist in batches."""
@@ -137,20 +135,18 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
     # Batch 1: Full batch
     track1 = get_valid_track_data("spotify:track:1", "Track 1")["track"]
     track2 = get_valid_track_data("spotify:track:2", "Track 2")["track"]
-    
+
     batch_1_tracks = [track1, track2]
     # We need to return a LikedTracksResponse object
-    
+
     response_batch_1 = LikedTracksResponse(
         href="http://href",
         limit=100,
         offset=0,
         total=2,
-        items=[
-            LikedTrackItem(track=t, added_at="2023-01-01T00:00:00Z") for t in batch_1_tracks
-        ],
+        items=[LikedTrackItem(track=t, added_at="2023-01-01T00:00:00Z") for t in batch_1_tracks],
     )
-    
+
     # Batch 2: Empty
     response_batch_2 = LikedTracksResponse(
         href="http://href", limit=100, offset=0, total=0, items=[]
@@ -159,17 +155,18 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
     # Patch fetch_tracks_batch on the instance
     with patch.object(client_instance, "fetch_tracks_batch", new_callable=AsyncMock) as mock_fetch:
         mock_fetch.side_effect = [response_batch_1, response_batch_2]
-        
+
         # Patch delete_with_sem
-        with patch.object(client_instance, "delete_with_sem", new_callable=AsyncMock) as mock_delete:
-            
+        with patch.object(
+            client_instance, "delete_with_sem", new_callable=AsyncMock
+        ) as mock_delete:
             # Patch BATCH_SIZE to 2 so that valid full batch (2 items) triggers next loop
             with patch.object(Client, "BATCH_SIZE", 2):
                 await client_instance.delete_all_playlist_tracks()
 
             # Verify fetch was called twice (once for tracks, once getting empty)
             assert mock_fetch.call_count == EXPECTED_FETCH_CALLS
-        
+
         # Verify delete was called once (for the first batch). Second batch fetch was empty so no delete.
         assert mock_delete.call_count == 1
         args, _ = mock_delete.call_args

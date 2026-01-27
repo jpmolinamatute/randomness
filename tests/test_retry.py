@@ -67,7 +67,7 @@ async def test_delete_with_sem_retries(client_instance: Client) -> None:
     mock_client.request.side_effect = [r429, r200]
 
     url = "http://example.com/delete"
-    data:dict[str, Any] = {"tracks": []}
+    data: dict[str, Any] = {"tracks": []}
 
     # Patch asyncio.sleep to avoid waiting during test
     with patch("asyncio.sleep", new_callable=AsyncMock):
