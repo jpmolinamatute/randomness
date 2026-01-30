@@ -18,35 +18,20 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2",
     "types-requests>=2.32.4.20250913",
     "pytest>=8.0.0",
     "responses>=0.25.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.14.10",
+    "ty>=0.0.14",
 ]
 
 [tool.uv]
 python-preference = "only-managed"
 required-version = ">=0.7.17"
 
-[tool.mypy]
-strict = true
-python_version = "3.14"
-plugins = ["pydantic.mypy"]
-sqlite_cache = true
-show_column_numbers = true
-show_error_codes = true
-follow_imports = "silent"
-warn_unreachable = true
-exclude = "(__pycache__|.mypy_cache|.pytest_cache|.venv|ruff_cache)/"
-explicit_package_bases = true
-
-
-[tool.pydantic-mypy]
-init_forbid_extra = true
-init_typed = true
-warn_untyped_fields = true
+[tool.ty.environment]
+python-platform = "linux"
 
 [tool.pytest.ini_options]
 addopts = "-vra  --color=yes"
@@ -69,7 +54,7 @@ exclude = [
     ".vscode",
     ".github",
 ]
-include = ["spotify/**/*.py", "tests/**/*.py"]
+include = ["spotify/**/*.py", "tests/**/*.py", "main.py"]
 line-length = 100
 target-version = "py314"
 
