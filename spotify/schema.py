@@ -340,6 +340,10 @@ class LikedTrackItem(BaseModel):
         None, description="Video thumbnail metadata for the item (if provided)"
     )
 
+    item: dict[str, Any] | None = Field(
+        None, description="Optional item field containing track metadata"
+    )
+
     model_config = ConfigDict(title="LikedTrackItem", extra="forbid")
 
 

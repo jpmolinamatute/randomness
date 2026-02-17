@@ -48,7 +48,7 @@ class Auth:
             code_challenge=code_challenge,
         )
 
-        # Group credentials (access/refresh/scope/texp window)
+        # Group credentials (access/refresh/scope/text window)
         self.credentials = SpotifyCredentials(
             access_token="",
             refresh_token="",

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-
+PATH="/home/juanpa/.local/bin:/home/juanpa/.local/bin:/usr/local/bin:/usr/bin:/usr/local/sbin"
 COMPOSE_FILE="${ROOT_DIR}/docker/docker-compose.yaml"
 
 start_docker() {
@@ -32,9 +32,7 @@ stop_docker() {
 
 main(){
     start_docker
-    # shellcheck source=../.venv/bin/activate
-    source "${ROOT_DIR}/.venv/bin/activate"
-    "${ROOT_DIR}/main.py" "${@}"
+    uv run "${ROOT_DIR}/main.py" "${@}"
     stop_docker
     exit 0
 }
