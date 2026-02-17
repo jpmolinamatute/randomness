@@ -42,7 +42,7 @@ def get_valid_track_data(uri: str = "spotify:track:1", name: str = "Track 1") ->
             "uri": uri,
             "name": name,
             "type": "track",
-            "id": uri.split(":")[-1],
+            "id": uri.rsplit(":", maxsplit=1)[-1],
             "duration_ms": 1000,
             "explicit": False,
             "popularity": 50,
