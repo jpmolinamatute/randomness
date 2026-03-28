@@ -8,7 +8,7 @@ from spotify.schema import LikedTrackItem, LikedTracksResponse
 
 EXPECTED_TRACKS_COUNT = 2
 EXPECTED_DELETE_COUNT = 3
-EXPECTED_FETCH_CALLS = 2
+EXPECTED_FETCH_CALLS = 1
 
 
 @pytest.mark.asyncio
@@ -120,7 +120,7 @@ async def test_get_all_liked_tracks(client_instance: Client) -> None:
 
         # Verify DB insertion
         # Cast to MagicMock to satisfy MyPy
-        mock_db_insert = cast(MagicMock, client_instance.db.insert_tracks)
+        mock_db_insert = cast(MagicMock, client_instance.db.sync_tracks)
         assert mock_db_insert.called
         # We expect 2 tracks to be inserted
         _, _ = mock_db_insert.call_args

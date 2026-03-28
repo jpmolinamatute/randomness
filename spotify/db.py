@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 
 from spotify.custom_types import RandomnessType
@@ -77,7 +77,7 @@ class DB:
         if not whole_sample:
             raise ValueError("'whole_sample' must not be empty")
         max_no_item = len(whole_sample)
-        no_of_item = int(max_no_item * self.artist_sampling_ratio)
+        no_of_item = max(1, int(max_no_item * self.artist_sampling_ratio))
         self.logger.debug("Sampling without replacement: max=%d pick=%d", max_no_item, no_of_item)
         return random.sample(whole_sample, no_of_item)
 
@@ -86,9 +86,30 @@ class DB:
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
         return self.get_tracks_coll().count_documents(mongo_filters)
 
-    def insert_tracks(self, tracks: list[dict[str, Any]]) -> None:
-        self.logger.debug("Saving tracks to MongoDB: count=%d", len(tracks))
-        self.get_tracks_coll().insert_many(tracks)
+    def sync_tracks(self, tracks: list[dict[str, Any]]) -> None:
+        self.logger.debug("Syncing tracks to MongoDB: sum=%d", len(tracks))
+
+        existing_uris_cursor = self.get_tracks_coll().find({}, {"uri": 1})
+        existing_uris = {doc.get("uri") for doc in existing_uris_cursor if doc.get("uri")}
+        incoming_uris = {t.get("uri") for t in tracks if t.get("uri")}
+
+        uris_to_delete = existing_uris - incoming_uris
+        if uris_to_delete:
+            self.logger.info("Deleting %d missing tracks from DB", len(uris_to_delete))
+            self.get_tracks_coll().delete_many({"uri": {"$in": list(uris_to_delete)}})
+
+        operations = []
+        for t in tracks:
+            # Upsert track metadata, preserve or initialize played_at
+            update_doc = {
+                "$set": t,
+                "$setOnInsert": {"played_at": None}
+            }
+            operations.append(UpdateOne({"uri": t["uri"]}, update_doc, upsert=True))
+
+        if operations:
+            self.get_tracks_coll().bulk_write(operations)
+            self.logger.info("Upserted %d tracks into DB", len(operations))
 
     def get_latest_playlist_uris(self) -> list[str]:
         self.logger.debug("Reading playlist from DB")
@@ -104,7 +125,7 @@ class DB:
     def reset_collection(self, collection_name: str) -> None:
         self.logger.debug("Resetting collection: %s", collection_name)
         if collection_name == self.tracks_coll_name:
-            self.get_tracks_coll().delete_many({})
+            self.logger.warning("tracks collection is no longer reset; use sync_tracks instead")
         elif collection_name == self.playlist_coll_name:
             self.get_playlist_coll().delete_many({})
         else:
@@ -165,34 +186,18 @@ class DB:
         if max_no_item and no_items > max_no_item:
             raise ValueError(f"Number of items must be less than {max_no_item}")
 
-    def get_recent_playlist_uris(self, limit: int = 3) -> list[str]:
-        """Get URIs from the last `limit` playlists to avoid repetition."""
-        self.logger.debug("Fetching last %d playlists for exclusion", limit)
-        recent_playlists = self.get_playlist_coll().find(
-            {},
-            projection={"tracks.uri": 1, "_id": 0},
-            sort=[("created_at", -1)],
-            limit=limit,
-        )
-        excluded_uris = []
-        for playlist in recent_playlists:
-            # Extract URIs from nested tracks list
-            excluded_uris.extend([t.get("uri") for t in playlist.get("tracks", []) if t.get("uri")])
-        self.logger.info("Found %d tracks to exclude from recent playlists", len(excluded_uris))
-        return excluded_uris
+    MAX_SIZE_WINDOW = 300
+    RATIO_WINDOW = 3
 
     def generate_random_tracks(self, no_items: int) -> None:
-        self.logger.debug(
-            "Building random track pipeline: no_items=%d out_collection=%s",
-            no_items,
-            self.playlist_coll_name,
-        )
-        self.logger.info("Generating a playlist with %d items and by random tracks", no_items)
+        self.logger.debug("Building random track pipeline: no_items=%d", no_items)
+        self.logger.info("Generating a playlist with %d items using Least-Recently-Played logic", no_items)
 
-        excluded_uris = self.get_recent_playlist_uris()
-
+        # 1. Pipeline: Sort by played_at ASC, grab the oldest window of tracks, shuffle them
+        window_size = max(no_items * self.RATIO_WINDOW, self.MAX_SIZE_WINDOW)
         pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {"uri": {"$nin": excluded_uris}}},
+            {"$sort": {"played_at": 1}},
+            {"$limit": window_size},
             {"$sample": {"size": no_items}},
             {
                 "$group": {
@@ -212,18 +217,28 @@ class DB:
 
         cursor = self.get_tracks_coll().aggregate(pipeline)
         cursor.close()
+
+        # 2. Extract which tracks were actually chosen to update their played_at
+        latest_uris = self.get_latest_playlist_uris()
+        
+        # 3. Mark them as played
+        if latest_uris:
+            self.get_tracks_coll().update_many(
+                {"uri": {"$in": latest_uris}},
+                {"$set": {"played_at": datetime.now(UTC)}}
+            )
+            self.logger.debug("Marked %d tracks as played", len(latest_uris))
 
     def generate_random_artists(self, no_items: int) -> None:
         self.logger.debug("Selecting random artists to build playlist: no_items=%d", no_items)
-        self.logger.info("Generating a playlist with %d items and by random artists", no_items)
         all_artists = self.get_artist_ids()
         some_artists = self._randomize(all_artists)
-        self.logger.debug(
-            "Artist sampling: total_artists=%d selected=%d", len(all_artists), len(some_artists)
-        )
-        excluded_uris = self.get_recent_playlist_uris()
+        
+        window_size = max(no_items * self.RATIO_WINDOW, self.MAX_SIZE_WINDOW)
         pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {"artists._id": {"$in": some_artists}, "uri": {"$nin": excluded_uris}}},
+            {"$match": {"artists._id": {"$in": some_artists}}},
+            {"$sort": {"played_at": 1}},
+            {"$limit": window_size},
             {"$sample": {"size": no_items}},
             {
                 "$group": {
@@ -243,6 +258,13 @@ class DB:
 
         cursor = self.get_tracks_coll().aggregate(pipeline)
         cursor.close()
+
+        latest_uris = self.get_latest_playlist_uris()
+        if latest_uris:
+            self.get_tracks_coll().update_many(
+                {"uri": {"$in": latest_uris}},
+                {"$set": {"played_at": datetime.now(UTC)}}
+            )
 
     def generate_random_playlist(self, item_type: RandomnessType, no_items: int) -> None:
         self.logger.debug(

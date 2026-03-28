@@ -24,7 +24,6 @@ async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
 
     if args.update_cache:
         logger.info("Updating local cache of liked tracks")
-        my_mongo.reset_collection(my_mongo.tracks_coll_name)
         await sp_client.get_all_liked_tracks()
     elif my_mongo.count_track({}) == 0:
         logger.info("Populating local cache of liked tracks")

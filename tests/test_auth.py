@@ -89,19 +89,10 @@ async def test_refresh_access_token(auth_instance: Auth) -> None:
 
 def test_is_token_expired(auth_instance: Auth) -> None:
     """Test token expiration check."""
-    # Mock Token.load_tokens
-    with patch("spotify.token.Token.load_tokens"):
-        # load_tokens doesn't return, it sets attributes on self instance in real code,
-        # but here we are patching the method on the class or instance.
-        # Wait, is_token_expired creates a NEW Token() instance.
-        # So we need to patch Token class or its method.
+    # Case 1: Expired
+    auth_instance.credentials.expires_at = time.time() - 100
+    assert auth_instance.is_token_expired() is True
 
-        with patch("spotify.auth.Token") as mock_token_class:
-            instance = mock_token_class.return_value
-            # Case 1: Expired
-            instance.token_expires_at = time.time() - 100
-            assert auth_instance.is_token_expired() is True
-
-            # Case 2: Not expired
-            instance.token_expires_at = time.time() + 3600
-            assert auth_instance.is_token_expired() is False
+    # Case 2: Not expired
+    auth_instance.credentials.expires_at = time.time() + 3600
+    assert auth_instance.is_token_expired() is False

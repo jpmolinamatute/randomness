@@ -72,14 +72,7 @@ class Auth:
 
     def is_token_expired(self) -> bool:
         now = time.time()
-        try:
-            token_data = Token()
-            token_data.load_tokens()
-            expires_at = token_data.token_expires_at
-        except TokenError:
-            # If we cannot read expiry, force a refresh
-            self.logger.debug("Token expiry unknown; treating as expired")
-            return True
+        expires_at = self.credentials.expires_at
         remaining = (expires_at - self.REFRESH_LEEWAY_SECONDS) - now
         self.logger.debug(
             "Checking token expiration: now=%.0f expires_at=%.0f leeway=%ds remaining=%.0fs",
@@ -110,7 +103,7 @@ class Auth:
         self.credentials = SpotifyCredentials(
             access_token=token.access_token,
             refresh_token=token.refresh_token,
-            expires_in=max(0.0, token.token_expires_at - time.time()),
+            expires_at=token.token_expires_at,
             scope=self.credentials.scope,
         )
 
@@ -235,8 +228,7 @@ class Auth:
             # Update in-memory credentials from persisted token store
             self.credentials.access_token = token_data.access_token
             self.credentials.refresh_token = token_data.refresh_token
-            # Set a snapshot of remaining time for logging/initial check
-            self.credentials.expires_in = max(0.0, token_data.token_expires_at - time.time())
+            self.credentials.expires_at = token_data.token_expires_at
             self.logger.debug(
                 "Loaded tokens: expires_at=%.0f now=%.0f",
                 token_data.token_expires_at,

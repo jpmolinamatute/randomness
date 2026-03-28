@@ -142,14 +142,6 @@ class Artist(MongoIdMixin):
 
     model_config = ConfigDict(title="Artist", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.artist_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.artist_id = value
-
 
 class Album(MongoIdMixin):
     album_id: str = Field(..., alias="_id", description="Spotify ID of the album")
@@ -182,14 +174,6 @@ class Album(MongoIdMixin):
 
     model_config = ConfigDict(title="Album", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.album_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.album_id = value
-
 
 class ExternalIds(BaseModel):
     isrc: str = Field("", description="International Standard Recording Code identifying the track")
@@ -213,14 +197,6 @@ class LinkedFrom(MongoIdMixin):
     uri: str = Field(..., description="Spotify URI of the original track")
 
     model_config = ConfigDict(title="LinkedFrom", extra="forbid", populate_by_name=True)
-
-    @property
-    def _id(self) -> str:
-        return self.linked_from_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.linked_from_id = value
 
 
 class Restrictions(BaseModel):
@@ -276,14 +252,6 @@ class Track(MongoIdMixin):
 
     model_config = ConfigDict(title="Track", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.track_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.track_id = value
-
 
 class Followers(BaseModel):
     href: str = Field(
@@ -306,14 +274,6 @@ class Owner(MongoIdMixin):
     display_name: str = Field("", description="User's display name")
 
     model_config = ConfigDict(title="Owner", extra="forbid", populate_by_name=True)
-
-    @property
-    def _id(self) -> str:
-        return self.user_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.user_id = value
 
 
 class VideoThumbnail(BaseModel):
@@ -385,18 +345,10 @@ class Playlist(MongoIdMixin):
 
     model_config = ConfigDict(title="Playlist", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.playlist_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.playlist_id = value
-
 
 class SpotifyCredentials(BaseModel):
     access_token: str = Field(..., description="OAuth access token for Spotify API")
-    expires_in: float = Field(default=0.0, description="Time in seconds until the token expires")
+    expires_at: float = Field(default=0.0, description="Absolute timestamp when the token expires")
     refresh_token: str = Field(..., description="OAuth refresh token to obtain new access tokens")
     scope: str = Field(
         default="user-library-read playlist-modify-public playlist-modify-private",
