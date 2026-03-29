@@ -1,6 +1,5 @@
 import json
 import logging
-import random
 from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from os import environ
@@ -8,17 +7,20 @@ from pathlib import Path
 from typing import Any
 
 from bson import ObjectId
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
+from pymongo.errors import AutoReconnect
 
 from spotify.custom_types import RandomnessType
 
 type CollType = dict[str, Any]
 
-MAX_PLAYLIST_ITEMS = 100
-
 
 class DB:
+    MAX_SIZE_WINDOW = 300
+    RATIO_WINDOW = 3
+    MAX_PLAYLIST_ITEMS = 100
+
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         # Read connection settings from environment and initialize client/db.
@@ -32,12 +34,10 @@ class DB:
             mongo_db_name,
         )
         # Do not log raw password; mask if ever needed.
-        mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017"
+        mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017/?maxIdleTimeMS=50000"
         self.mongo_client: MongoClient[CollType] = MongoClient(mongo_uri)
         self.mongo_db = self.mongo_client[mongo_db_name]
-        self.playlist_coll_name = "playlist"
         self.tracks_coll_name = "tracks"
-        self.artist_sampling_ratio = 0.25
 
     def close(self) -> None:
         self.logger.debug("Closing MongoDB client connection")
@@ -53,6 +53,11 @@ class DB:
             self.logger.debug(
                 "MongoDB connection ok: version=%s, is_primary=%s", version, is_primary
             )
+            # Create indexes now that we know the DB is up
+            self.logger.debug("Ensuring indexes on %s", self.tracks_coll_name)
+            self.mongo_db[self.tracks_coll_name].create_index("uri", unique=True)
+            self.mongo_db[self.tracks_coll_name].create_index("played_at")
+            self.mongo_db[self.tracks_coll_name].create_index("artists._id")
         except Exception:
             self.logger.exception("MongoDB is not available", exc_info=True)
             is_up = False
@@ -62,51 +67,50 @@ class DB:
         self.logger.debug("Retrieving collection: %s", self.tracks_coll_name)
         return self.mongo_db[self.tracks_coll_name]
 
-    def get_playlist_coll(self) -> Collection[CollType]:
-        self.logger.debug("Retrieving collection: %s", self.playlist_coll_name)
-        return self.mongo_db[self.playlist_coll_name]
-
-    def _randomize(self, whole_sample: list[str]) -> list[str]:
-        self.logger.debug(
-            "Randomizing sample: input_len=%d randomness_percentage=%.2f",
-            len(whole_sample) if isinstance(whole_sample, list) else -1,
-            self.artist_sampling_ratio,
-        )
-        if not isinstance(whole_sample, list):
-            raise ValueError("'whole_sample' must be a list")
-        if not whole_sample:
-            raise ValueError("'whole_sample' must not be empty")
-        max_no_item = len(whole_sample)
-        no_of_item = int(max_no_item * self.artist_sampling_ratio)
-        self.logger.debug("Sampling without replacement: max=%d pick=%d", max_no_item, no_of_item)
-        return random.sample(whole_sample, no_of_item)
-
     def count_track(self, mongo_filters: Mapping[str, Any]) -> int:
         """Delegate to tracks collection count for testing convenience."""
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
         return self.get_tracks_coll().count_documents(mongo_filters)
 
-    def insert_tracks(self, tracks: list[dict[str, Any]]) -> None:
-        self.logger.debug("Saving tracks to MongoDB: count=%d", len(tracks))
-        self.get_tracks_coll().insert_many(tracks)
+    def sync_tracks(self, tracks: list[dict[str, Any]]) -> None:
+        self.logger.debug("Syncing tracks to MongoDB: sum=%d", len(tracks))
 
-    def get_latest_playlist_uris(self) -> list[str]:
-        self.logger.debug("Reading playlist from DB")
-        uri_list = []
-        playlist = self.get_playlist_coll().find_one(
-            sort=[("created_at", -1)], projection={"tracks.uri": 1, "_id": 0}
-        )
-        if playlist:
-            uri_list = [track["uri"] for track in playlist["tracks"]]
-        self.logger.info("Read %d tracks from the playlist", len(uri_list))
-        return uri_list
+        existing_uris_cursor = self.get_tracks_coll().find({}, {"uri": 1})
+        existing_uris = {doc.get("uri") for doc in existing_uris_cursor if doc.get("uri")}
+        incoming_uris = {t.get("uri") for t in tracks if t.get("uri")}
+
+        uris_to_delete = existing_uris - incoming_uris
+        if uris_to_delete:
+            self.logger.info("Deleting %d missing tracks from DB", len(uris_to_delete))
+            self.get_tracks_coll().delete_many({"uri": {"$in": list(uris_to_delete)}})
+
+        operations = []
+        for t in tracks:
+            # Upsert track metadata, preserve or initialize played_at
+            update_doc = {"$set": t, "$setOnInsert": {"played_at": None}}
+            operations.append(UpdateOne({"uri": t["uri"]}, update_doc, upsert=True))
+
+        if operations:
+            batch_size = 500
+            max_retries = 5
+            for i in range(0, len(operations), batch_size):
+                batch = operations[i : i + batch_size]
+                for attempt in range(max_retries):
+                    try:
+                        self.get_tracks_coll().bulk_write(batch)
+                        break
+                    except AutoReconnect:
+                        if attempt == max_retries - 1:
+                            raise
+                        self.logger.warning(
+                            "AutoReconnect in bulk_write (Docker idle timeout). Retrying batch."
+                        )
+            self.logger.info("Upserted %d tracks into DB", len(operations))
 
     def reset_collection(self, collection_name: str) -> None:
         self.logger.debug("Resetting collection: %s", collection_name)
         if collection_name == self.tracks_coll_name:
-            self.get_tracks_coll().delete_many({})
-        elif collection_name == self.playlist_coll_name:
-            self.get_playlist_coll().delete_many({})
+            self.logger.warning("tracks collection is no longer reset; use sync_tracks instead")
         else:
             raise ValueError("Invalid collection name")
 
@@ -137,27 +141,16 @@ class DB:
 
         self.logger.info("Exported %d tracks to %s", len(export_data), filename)
 
-    def get_artist_ids(self) -> list[str]:
-        self.logger.debug("Aggregating distinct artist IDs from tracks collection")
-        pipeline: Sequence[Mapping[str, Any]] = [
-            {"$unwind": "$artists"},
-            {"$group": {"_id": "$artists._id"}},
-            {"$project": {"_id": 1}},
-        ]
-        cursor = self.get_tracks_coll().aggregate(pipeline)
-        result = [doc["_id"] for doc in cursor]
-        cursor.close()
-        self.logger.debug("Found %d distinct artist IDs", len(result))
-        return result
-
     def validate_item_count(self, no_items: int) -> None:
         self.logger.debug("Validating requested item count: no_items=%s", no_items)
         if not isinstance(no_items, int):
             raise ValueError("Number of items must be an integer")
         if no_items < 1:
             raise ValueError("Number of items must be greater than 0")
-        if no_items > MAX_PLAYLIST_ITEMS:
-            raise ValueError(f"Number of items must be less than or equal to {MAX_PLAYLIST_ITEMS}")
+        if no_items > self.MAX_PLAYLIST_ITEMS:
+            raise ValueError(
+                f"Number of items must be less than or equal to {self.MAX_PLAYLIST_ITEMS}"
+            )
         # Use DB-level count_documents to align with test mocks.
         max_no_item = self.count_track({})
         self.logger.debug("Max items available according to DB: %s", max_no_item)
@@ -165,34 +158,16 @@ class DB:
         if max_no_item and no_items > max_no_item:
             raise ValueError(f"Number of items must be less than {max_no_item}")
 
-    def get_recent_playlist_uris(self, limit: int = 3) -> list[str]:
-        """Get URIs from the last `limit` playlists to avoid repetition."""
-        self.logger.debug("Fetching last %d playlists for exclusion", limit)
-        recent_playlists = self.get_playlist_coll().find(
-            {},
-            projection={"tracks.uri": 1, "_id": 0},
-            sort=[("created_at", -1)],
-            limit=limit,
+    def generate_random_tracks(self, no_items: int) -> list[str]:
+        self.logger.debug("Building random track pipeline: no_items=%d", no_items)
+        self.logger.info(
+            "Generating a playlist with %d items using Least-Recently-Played logic", no_items
         )
-        excluded_uris = []
-        for playlist in recent_playlists:
-            # Extract URIs from nested tracks list
-            excluded_uris.extend([t.get("uri") for t in playlist.get("tracks", []) if t.get("uri")])
-        self.logger.info("Found %d tracks to exclude from recent playlists", len(excluded_uris))
-        return excluded_uris
 
-    def generate_random_tracks(self, no_items: int) -> None:
-        self.logger.debug(
-            "Building random track pipeline: no_items=%d out_collection=%s",
-            no_items,
-            self.playlist_coll_name,
-        )
-        self.logger.info("Generating a playlist with %d items and by random tracks", no_items)
-
-        excluded_uris = self.get_recent_playlist_uris()
-
+        window_size = max(no_items * self.RATIO_WINDOW, self.MAX_SIZE_WINDOW)
         pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {"uri": {"$nin": excluded_uris}}},
+            {"$sort": {"played_at": 1}},
+            {"$limit": window_size},
             {"$sample": {"size": no_items}},
             {
                 "$group": {
@@ -201,57 +176,28 @@ class DB:
                     "created_at": {"$first": datetime.now(UTC)},
                 }
             },
-            {
-                "$merge": {
-                    "into": self.playlist_coll_name,
-                    "whenMatched": "keepExisting",
-                    "whenNotMatched": "insert",
-                }
-            },
         ]
 
         cursor = self.get_tracks_coll().aggregate(pipeline)
+        result = list(cursor)
         cursor.close()
 
-    def generate_random_artists(self, no_items: int) -> None:
-        self.logger.debug("Selecting random artists to build playlist: no_items=%d", no_items)
-        self.logger.info("Generating a playlist with %d items and by random artists", no_items)
-        all_artists = self.get_artist_ids()
-        some_artists = self._randomize(all_artists)
-        self.logger.debug(
-            "Artist sampling: total_artists=%d selected=%d", len(all_artists), len(some_artists)
-        )
-        excluded_uris = self.get_recent_playlist_uris()
-        pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {"artists._id": {"$in": some_artists}, "uri": {"$nin": excluded_uris}}},
-            {"$sample": {"size": no_items}},
-            {
-                "$group": {
-                    "_id": ObjectId(),
-                    "tracks": {"$push": "$$ROOT"},
-                    "created_at": {"$first": datetime.now(UTC)},
-                }
-            },
-            {
-                "$merge": {
-                    "into": self.playlist_coll_name,
-                    "whenMatched": "keepExisting",
-                    "whenNotMatched": "insert",
-                }
-            },
-        ]
+        latest_uris = [track.get("uri") for track in result[0].get("tracks", [])] if result else []
 
-        cursor = self.get_tracks_coll().aggregate(pipeline)
-        cursor.close()
+        if latest_uris:
+            self.get_tracks_coll().update_many(
+                {"uri": {"$in": latest_uris}}, {"$set": {"played_at": datetime.now(UTC)}}
+            )
+            self.logger.debug("Marked %d tracks as played", len(latest_uris))
 
-    def generate_random_playlist(self, item_type: RandomnessType, no_items: int) -> None:
+        return latest_uris
+
+    def generate_random_playlist(self, item_type: RandomnessType, no_items: int) -> list[str]:
         self.logger.debug(
             "Dispatching generate_random_playlist: type=%s no_items=%d", item_type, no_items
         )
         self.validate_item_count(no_items)
         if item_type == "track":
-            self.generate_random_tracks(no_items)
-        elif item_type == "artist":
-            self.generate_random_artists(no_items)
+            return self.generate_random_tracks(no_items)
         else:
             raise ValueError("Invalid item type")

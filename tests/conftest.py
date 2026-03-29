@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,7 +25,6 @@ def _setup_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def mock_db() -> MagicMock:
     """Mock the DB class."""
     db = MagicMock(spec=DB)
-    db.get_latest_playlist_uris.return_value = ["spotify:track:1", "spotify:track:2"]
     return db
 
 

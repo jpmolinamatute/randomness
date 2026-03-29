@@ -10,7 +10,7 @@ from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponentia
 
 from spotify.auth import Auth
 from spotify.db import DB
-from spotify.schema import LikedTracksResponse, Track
+from spotify.schema import LikedTracksResponse
 
 
 class Client:
@@ -24,7 +24,6 @@ class Client:
         self.logger = logging.getLogger(__name__)
         self.auth = auth
         self.api_url = "https://api.spotify.com/v1"
-
         self.db = my_mongo
         self.spotify_playlist_id = environ["SPOTIFY_PLAYLIST_ID"]
         self.logger.debug(
@@ -80,18 +79,6 @@ class Client:
             device_id = response_data["devices"][0]["id"]
         self.logger.debug("Available device ID: %s", device_id)
         return device_id
-
-    def read_latest_playlist_track_uris(self) -> list[str]:
-        return self.db.get_latest_playlist_uris()
-
-    def insert_tracks_to_db(self, tracks: list[Track]) -> None:
-        self.logger.debug("Saving tracks to MongoDB: count=%d", len(tracks))
-        new_tracks = []
-        for t in tracks:
-            mongo_track_dict = t.model_dump(by_alias=True)
-            new_tracks.append(mongo_track_dict)
-
-        self.db.insert_tracks(new_tracks)
 
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -162,11 +149,18 @@ class Client:
         self.logger.info("Getting all liked tracks")
         url = f"{self.api_url}/me/tracks?offset=0&limit={self.ME_BATCH_SIZE}"
 
+        all_tracks = []
+
         async with httpx.AsyncClient() as client:
             # Fetch first batch to get total count
             first_batch = await self.fetch_tracks_batch(client, url, "liked")
-            batch_tracks = [item.track for item in first_batch.items]
-            self.insert_tracks_to_db(batch_tracks)
+            all_tracks.extend(
+                [
+                    item.track.model_dump(by_alias=True)
+                    for item in first_batch.items
+                    if item.track and item.track.uri
+                ]
+            )
 
             total = first_batch.total
             self.logger.info("Total liked tracks to fetch: %d", total)
@@ -182,9 +176,16 @@ class Client:
             if tasks:
                 responses = await asyncio.gather(*tasks)
                 for response_data in responses:
-                    batch_tracks = [item.track for item in response_data.items]
-                    self.insert_tracks_to_db(batch_tracks)
+                    all_tracks.extend(
+                        [
+                            item.track.model_dump(by_alias=True)
+                            for item in response_data.items
+                            if item.track and item.track.uri
+                        ]
+                    )
 
+        # Do a single sync at the end
+        self.db.sync_tracks(all_tracks)
         self.logger.debug("Completed retrieval of liked tracks")
 
     async def _yield_playlist_tracks_batches(
@@ -209,11 +210,9 @@ class Client:
 
                 yield uris
 
-                # If we got fewer than BATCH_SIZE, we are effectively done after this delete
-                # But safer to just loop until empty list returned?
-                # If we rely on valid 'total', we might stop early.
-                # But 'fetch_tracks_batch' returns a parsed object.
-                if len(items) < self.BATCH_SIZE:
+                # If the total items reported in this response is <= our batch size,
+                # then this is the last batch and we don't need to fetch again.
+                if response_data.total <= self.BATCH_SIZE:
                     break
 
             except Exception:
@@ -238,13 +237,12 @@ class Client:
                     self.logger.exception("Failed to delete batch")
                     raise
 
-    async def populate_playlist_from_db(self) -> None:
+    async def populate_playlist_with_uris(self, uri_list: list[str]) -> None:
         self.logger.debug(
             "Generating content in playlist: playlist_id=%s", self.spotify_playlist_id
         )
         self.logger.info("Generating content")
         url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
-        uri_list = self.read_latest_playlist_track_uris()
         self.logger.debug("Preparing to add tracks: total=%d", len(uri_list))
         headers = await self._get_headers()
         headers["Content-Type"] = "application/json"

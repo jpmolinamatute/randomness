@@ -8,7 +8,7 @@ from spotify.schema import LikedTrackItem, LikedTracksResponse
 
 EXPECTED_TRACKS_COUNT = 2
 EXPECTED_DELETE_COUNT = 3
-EXPECTED_FETCH_CALLS = 2
+EXPECTED_FETCH_CALLS = 1
 
 
 @pytest.mark.asyncio
@@ -42,7 +42,7 @@ def get_valid_track_data(uri: str = "spotify:track:1", name: str = "Track 1") ->
             "uri": uri,
             "name": name,
             "type": "track",
-            "id": uri.split(":")[-1],
+            "id": uri.rsplit(":", maxsplit=1)[-1],
             "duration_ms": 1000,
             "explicit": False,
             "popularity": 50,
@@ -120,7 +120,7 @@ async def test_get_all_liked_tracks(client_instance: Client) -> None:
 
         # Verify DB insertion
         # Cast to MagicMock to satisfy MyPy
-        mock_db_insert = cast(MagicMock, client_instance.db.insert_tracks)
+        mock_db_insert = cast(MagicMock, client_instance.db.sync_tracks)
         assert mock_db_insert.called
         # We expect 2 tracks to be inserted
         _, _ = mock_db_insert.call_args
@@ -178,18 +178,15 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_populate_playlist_from_db(client_instance: Client) -> None:
-    """Test populating playlist from DB."""
-    # Cast to MagicMock to satisfy MyPy
-    mock_db_get = cast(MagicMock, client_instance.db.get_latest_playlist_uris)
-    mock_db_get.return_value = ["uri1", "uri2"]
-
+async def test_populate_playlist_with_uris(client_instance: Client) -> None:
+    """Test populating playlist directly with uris."""
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.status_code = 201
         mock_post.return_value = mock_response
 
-        await client_instance.populate_playlist_from_db()
+        test_uris = ["uri1", "uri2"]
+        await client_instance.populate_playlist_with_uris(test_uris)
 
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args

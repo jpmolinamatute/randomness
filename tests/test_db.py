@@ -1,6 +1,6 @@
 # pylint: disable=redefined-outer-name
 from typing import cast
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import ANY, MagicMock, mock_open, patch
 
 import pytest
 
@@ -8,6 +8,8 @@ from spotify.db import DB
 
 EXPECTED_RANDOM_COUNT = 2
 TEST_PLAYLIST_SIZE = 5
+EXPECTED_TRACK_PIPELINE_SIZE = 4
+EXPECTED_ARTIST_PIPELINE_SIZE = 5
 
 
 @pytest.fixture
@@ -32,7 +34,6 @@ def test_init(db_instance: DB) -> None:
     """Test DB initialization."""
     assert db_instance.mongo_client is not None
     assert db_instance.mongo_db is not None
-    assert db_instance.playlist_coll_name == "playlist"
     assert db_instance.tracks_coll_name == "tracks"
 
 
@@ -59,35 +60,6 @@ def test_get_tracks_coll(db_instance: DB) -> None:
     assert coll == mock_db.__getitem__.return_value
 
 
-def test_get_playlist_coll(db_instance: DB) -> None:
-    """Test retrieving playlist collection."""
-    coll = db_instance.get_playlist_coll()
-    mock_db = cast(MagicMock, db_instance.mongo_db)
-    mock_db.__getitem__.assert_called_with("playlist")
-    assert coll == mock_db.__getitem__.return_value
-
-
-def test_randomize(db_instance: DB) -> None:
-    """Test _randomize method."""
-    # pylint: disable=protected-access
-    sample = ["a", "b", "c", "d", "e", "f", "g", "h"]
-    # ratio is 0.25, so 8 * 0.25 = 2 items
-    result = db_instance._randomize(sample)
-    assert len(result) == EXPECTED_RANDOM_COUNT
-    for item in result:
-        assert item in sample
-
-
-def test_randomize_errors(db_instance: DB) -> None:
-    """Test _randomize error handling."""
-    # pylint: disable=protected-access
-    with pytest.raises(ValueError, match="must be a list"):
-        db_instance._randomize("not a list")  # type: ignore
-
-    with pytest.raises(ValueError, match="must not be empty"):
-        db_instance._randomize([])
-
-
 def test_count_track(db_instance: DB) -> None:
     """Test count_track method."""
     mock_coll = MagicMock()
@@ -100,34 +72,18 @@ def test_count_track(db_instance: DB) -> None:
     mock_coll.count_documents.assert_called_with(filters)
 
 
-def test_insert_tracks(db_instance: DB) -> None:
-    """Test insert_tracks method."""
+def test_sync_tracks(db_instance: DB) -> None:
+    """Test sync_tracks method."""
     mock_coll = MagicMock()
     mock_db = cast(MagicMock, db_instance.mongo_db)
     mock_db.__getitem__.return_value = mock_coll
 
-    tracks = [{"id": 1}, {"id": 2}]
-    db_instance.insert_tracks(tracks)
+    mock_coll.find.return_value = [{"uri": "old_uri"}]
+    tracks = [{"uri": "new_uri"}]
+    db_instance.sync_tracks(tracks)
 
-    mock_coll.insert_many.assert_called_with(tracks)
-
-
-def test_get_latest_playlist_uris(db_instance: DB) -> None:
-    """Test get_latest_playlist_uris method."""
-    mock_coll = MagicMock()
-    mock_db = cast(MagicMock, db_instance.mongo_db)
-    mock_db.__getitem__.return_value = mock_coll
-
-    # Mock find_one return value
-    mock_coll.find_one.return_value = {"tracks": [{"uri": "uri1"}, {"uri": "uri2"}]}
-
-    uris = db_instance.get_latest_playlist_uris()
-    assert uris == ["uri1", "uri2"]
-
-    # Test empty playlist
-    mock_coll.find_one.return_value = None
-    uris = db_instance.get_latest_playlist_uris()
-    assert uris == []
+    mock_coll.delete_many.assert_called_with({"uri": {"$in": ["old_uri"]}})
+    mock_coll.bulk_write.assert_called_once()
 
 
 def test_reset_collection(db_instance: DB) -> None:
@@ -136,11 +92,14 @@ def test_reset_collection(db_instance: DB) -> None:
     mock_db = cast(MagicMock, db_instance.mongo_db)
     mock_db.__getitem__.return_value = mock_coll
 
-    db_instance.reset_collection("tracks")
-    mock_coll.delete_many.assert_called_with({})
+    with patch.object(db_instance, "logger") as mock_logger:
+        db_instance.reset_collection("tracks")
+        mock_logger.warning.assert_called_with(
+            "tracks collection is no longer reset; use sync_tracks instead"
+        )
+        mock_coll.delete_many.assert_not_called()
 
-    db_instance.reset_collection("playlist")
-    mock_coll.delete_many.assert_called_with({})
+    mock_coll.reset_mock()
 
     with pytest.raises(ValueError, match="Invalid collection name"):
         db_instance.reset_collection("invalid")
@@ -167,22 +126,6 @@ def test_export_to_json(db_instance: DB) -> None:
             data = args[0]
             assert len(data) == 1
             assert data[0]["artist_name"] == "Artist 1"
-
-
-def test_get_artist_ids(db_instance: DB) -> None:
-    """Test get_artist_ids method."""
-    mock_coll = MagicMock()
-    mock_db = cast(MagicMock, db_instance.mongo_db)
-    mock_db.__getitem__.return_value = mock_coll
-
-    # Mock aggregate return value
-    mock_cursor = MagicMock()
-    mock_cursor.__iter__.return_value = [{"_id": "artist1"}, {"_id": "artist2"}]
-    mock_coll.aggregate.return_value = mock_cursor
-
-    ids = db_instance.get_artist_ids()
-    assert ids == ["artist1", "artist2"]
-    mock_coll.aggregate.assert_called_once()
 
 
 def test_validate_item_count(db_instance: DB) -> None:
@@ -212,40 +155,24 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
     mock_db = cast(MagicMock, db_instance.mongo_db)
     mock_db.__getitem__.return_value = mock_coll
 
-    with patch.object(db_instance, "validate_item_count"):
-        with patch.object(
-            db_instance, "get_recent_playlist_uris", return_value=["uri_ex1", "uri_ex2"]
-        ):
-            db_instance.generate_random_playlist("track", TEST_PLAYLIST_SIZE)
-
-            # Verify aggregate called on tracks collection
-            # Note: get_tracks_coll is called, which calls mongo_db['tracks']
-            # We need to ensure the mock returned by getitem is used
-            mock_coll.aggregate.assert_called_once()
-            pipeline = mock_coll.aggregate.call_args[0][0]
-
-            # Verify exclusion logic
-            assert pipeline[0]["$match"]["uri"]["$nin"] == ["uri_ex1", "uri_ex2"]
-            assert pipeline[1]["$sample"]["size"] == TEST_PLAYLIST_SIZE
-            assert pipeline[3]["$merge"]["into"] == "playlist"
-
-
-def test_generate_random_playlist_artist(db_instance: DB) -> None:
-    """Test generate_random_playlist with artist type."""
-    mock_coll = MagicMock()
-    mock_db = cast(MagicMock, db_instance.mongo_db)
-    mock_db.__getitem__.return_value = mock_coll
+    mock_cursor = MagicMock()
+    mock_cursor.__iter__.return_value = [{"tracks": [{"uri": "uri_ex1"}, {"uri": "uri_ex2"}]}]
+    mock_coll.aggregate.return_value = mock_cursor
 
     with patch.object(db_instance, "validate_item_count"):
-        with patch.object(db_instance, "get_artist_ids", return_value=["a1", "a2", "a3", "a4"]):
-            # Mock _randomize to return a subset
-            with patch.object(db_instance, "_randomize", return_value=["a1", "a2"]):
-                db_instance.generate_random_playlist("artist", TEST_PLAYLIST_SIZE)
+        result_uris = db_instance.generate_random_playlist("track", TEST_PLAYLIST_SIZE)
 
-                mock_coll.aggregate.assert_called_once()
-                pipeline = mock_coll.aggregate.call_args[0][0]
-                assert pipeline[0]["$match"]["artists._id"]["$in"] == ["a1", "a2"]
-                assert pipeline[1]["$sample"]["size"] == TEST_PLAYLIST_SIZE
+        mock_coll.aggregate.assert_called_once()
+        pipeline = mock_coll.aggregate.call_args[0][0]
+
+        assert pipeline[0]["$sort"]["played_at"] == 1
+        assert pipeline[2]["$sample"]["size"] == TEST_PLAYLIST_SIZE
+        assert len(pipeline) == EXPECTED_TRACK_PIPELINE_SIZE  # $sort, $limit, $sample, $group
+
+        mock_coll.update_many.assert_called_once_with(
+            {"uri": {"$in": ["uri_ex1", "uri_ex2"]}}, {"$set": {"played_at": ANY}}
+        )
+        assert result_uris == ["uri_ex1", "uri_ex2"]
 
 
 def test_generate_random_playlist_invalid(db_instance: DB) -> None:

@@ -131,136 +131,125 @@ class MongoIdMixin(BaseModel):
 
 
 class Artist(MongoIdMixin):
-    artist_id: str = Field(..., alias="_id", description="Spotify ID of the artist")
-    external_urls: ExternalUrls = Field(
-        ..., description="External URLs for this artist (Spotify link)"
+    artist_id: str | None = Field(None, alias="_id", description="Spotify ID of the artist")
+    external_urls: ExternalUrls | None = Field(
+        None, description="External URLs for this artist (Spotify link)"
     )
-    href: str = Field(..., description="Spotify Web API endpoint for this artist")
-    name: str = Field(..., description="Artist name")
-    type: str = Field(..., description="Object type, should be 'artist'")
-    uri: str = Field(..., description="Spotify URI for the artist")
+    href: str | None = Field(None, description="Spotify Web API endpoint for this artist")
+    name: str | None = Field(None, description="Artist name")
+    type: str | None = Field(None, description="Object type, should be 'artist'")
+    uri: str | None = Field(None, description="Spotify URI for the artist")
 
     model_config = ConfigDict(title="Artist", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.artist_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.artist_id = value
-
 
 class Album(MongoIdMixin):
-    album_id: str = Field(..., alias="_id", description="Spotify ID of the album")
-    artists: list[Artist] = Field(..., description="List of artists for the album")
-    album_type: str = Field(..., description="Album type: album, single, compilation, etc.")
-    available_markets: list[str] = Field(
-        ..., description="ISO 3166-1 alpha-2 country codes where the album is available"
+    album_id: str | None = Field(None, alias="_id", description="Spotify ID of the album")
+    artists: list[Artist] | None = Field(None, description="List of artists for the album")
+    album_type: str | None = Field(None, description="Album type: album, single, compilation, etc.")
+    available_markets: list[str] | None = Field(
+        None, description="ISO 3166-1 alpha-2 country codes where the album is available"
     )
-    external_urls: ExternalUrls = Field(
-        ..., description="External URLs for this album (Spotify link)"
+    external_urls: ExternalUrls | None = Field(
+        None, description="External URLs for this album (Spotify link)"
     )
     is_playable: bool | None = Field(
-        default=None, description="Whether the album is playable in the user's market"
+        None, description="Whether the album is playable in the user's market"
     )
-    href: str = Field(..., description="Spotify Web API endpoint for this album")
-    images: list[Image] = Field(..., description="Cover art images in various sizes")
-    name: str = Field(..., description="Album name")
-    release_date: str = Field(
-        ..., description="Date the album was first released (may be year, year-month, or full date)"
+    href: str | None = Field(None, description="Spotify Web API endpoint for this album")
+    images: list[Image] | None = Field(None, description="Cover art images in various sizes")
+    name: str | None = Field(None, description="Album name")
+    release_date: str | None = Field(
+        None,
+        description="Date the album was first released (may be year, year-month, or full date)",
     )
-    release_date_precision: str = Field(
-        ..., description="Precision of release_date: year, month, or day"
+    release_date_precision: str | None = Field(
+        None, description="Precision of release_date: year, month, or day"
     )
     restrictions: Restrictions | None = Field(
         None, description="Market or content restrictions for the album, if any"
     )
-    total_tracks: int = Field(..., description="Total number of tracks on the album")
-    type: str = Field(..., description="Object type, should be 'album'")
-    uri: str = Field(..., description="Spotify URI for the album")
+    total_tracks: int | None = Field(None, description="Total number of tracks on the album")
+    type: str | None = Field(None, description="Object type, should be 'album'")
+    uri: str | None = Field(None, description="Spotify URI for the album")
 
     model_config = ConfigDict(title="Album", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.album_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.album_id = value
-
 
 class ExternalIds(BaseModel):
-    isrc: str = Field("", description="International Standard Recording Code identifying the track")
-    ean: str = Field("", description="International Article Number (if provided)")
-    upc: str = Field("", description="Universal Product Code of the album or track (if provided)")
+    isrc: str | None = Field(
+        None, description="International Standard Recording Code identifying the track"
+    )
+    ean: str | None = Field(None, description="International Article Number (if provided)")
+    upc: str | None = Field(
+        None, description="Universal Product Code of the album or track (if provided)"
+    )
 
     model_config = ConfigDict(title="ExternalIds", extra="forbid")
 
 
 class LinkedFrom(MongoIdMixin):
-    linked_from_id: str = Field(
-        ...,
+    linked_from_id: str | None = Field(
+        None,
         alias="_id",
         description="Original track ID this track is linked from (e.g., replaced version)",
     )
     external_urls: ExternalUrls | None = Field(
         None, description="External URLs for the original track if available"
     )
-    href: str = Field(..., description="API endpoint for the original track")
-    type: str = Field(..., description="Object type, should be 'track'")
-    uri: str = Field(..., description="Spotify URI of the original track")
+    href: str | None = Field(None, description="API endpoint for the original track")
+    type: str | None = Field(None, description="Object type, should be 'track'")
+    uri: str | None = Field(None, description="Spotify URI of the original track")
 
     model_config = ConfigDict(title="LinkedFrom", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.linked_from_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.linked_from_id = value
-
 
 class Restrictions(BaseModel):
-    reason: ReasonType = Field(
-        ..., description="Reason for restriction: market, product, or explicit content"
+    reason: ReasonType | None = Field(
+        None, description="Reason for restriction: market, product, or explicit content"
     )
 
     model_config = ConfigDict(title="Restrictions", extra="forbid")
 
 
 class Track(MongoIdMixin):
-    track_id: str = Field(..., alias="_id", description="Spotify ID of the track")
-    available_markets: list[str] = Field(
-        ..., description="Country codes where the track can be streamed"
+    track_id: str | None = Field(None, alias="_id", description="Spotify ID of the track")
+    available_markets: list[str] | None = Field(
+        None, description="Country codes where the track can be streamed"
     )
-    disc_number: int = Field(..., description="Disc number (for albums with multiple discs)")
-    duration_ms: int = Field(..., description="Track length in milliseconds")
-    explicit: bool = Field(..., description="True if the track has explicit lyrics/content")
-    external_ids: ExternalIds = Field(
-        ..., description="External identifier set for the track (ISRC, EAN, UPC)"
+    disc_number: int | None = Field(
+        None, description="Disc number (for albums with multiple discs)"
     )
-    external_urls: ExternalUrls = Field(
-        ..., description="External URLs for this track (Spotify link)"
+    duration_ms: int | None = Field(None, description="Track length in milliseconds")
+    explicit: bool | None = Field(None, description="True if the track has explicit lyrics/content")
+    external_ids: ExternalIds | None = Field(
+        None, description="External identifier set for the track (ISRC, EAN, UPC)"
     )
-    href: str = Field(..., description="Spotify Web API endpoint for this track")
+    external_urls: ExternalUrls | None = Field(
+        None, description="External URLs for this track (Spotify link)"
+    )
+    href: str | None = Field(None, description="Spotify Web API endpoint for this track")
     is_playable: bool | None = Field(
         None, description="Whether the track is playable in the user's market"
     )
     restrictions: Restrictions | None = Field(
         None, description="Market or content restrictions for the track, if any"
     )
-    name: str = Field(..., description="Track name")
-    popularity: int = Field(..., description="Popularity (0-100) based on Spotify play metrics")
+    name: str | None = Field(None, description="Track name")
+    popularity: int | None = Field(
+        None, description="Popularity (0-100) based on Spotify play metrics"
+    )
     preview_url: str | None = Field(None, description="30-second MP3 preview URL if available")
-    track_number: int = Field(..., description="Position of the track on its disc")
-    type: str = Field(..., description="Object type, should be 'track'")
-    uri: str = Field(..., description="Spotify URI for the track")
-    is_local: bool = Field(False, description="True if the track is a local file added by the user")
-    album: Album = Field(..., description="Album object that the track belongs to")
-    artists: list[Artist] = Field(..., description="List of artists who performed the track")
+    track_number: int | None = Field(None, description="Position of the track on its disc")
+    type: str | None = Field(None, description="Object type, should be 'track'")
+    uri: str | None = Field(None, description="Spotify URI for the track")
+    is_local: bool | None = Field(
+        None, description="True if the track is a local file added by the user"
+    )
+    album: Album | None = Field(None, description="Album object that the track belongs to")
+    artists: list[Artist] | None = Field(
+        None, description="List of artists who performed the track"
+    )
     linked_from: LinkedFrom | None = Field(
         None, description="Linking information if this track is a replacement of another"
     )
@@ -275,14 +264,6 @@ class Track(MongoIdMixin):
     )
 
     model_config = ConfigDict(title="Track", extra="forbid", populate_by_name=True)
-
-    @property
-    def _id(self) -> str:
-        return self.track_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.track_id = value
 
 
 class Followers(BaseModel):
@@ -307,14 +288,6 @@ class Owner(MongoIdMixin):
 
     model_config = ConfigDict(title="Owner", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.user_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.user_id = value
-
 
 class VideoThumbnail(BaseModel):
     url: str | None = Field(None, description="URL of the video thumbnail if available")
@@ -338,6 +311,10 @@ class LikedTrackItem(BaseModel):
     )
     video_thumbnail: VideoThumbnail | None = Field(
         None, description="Video thumbnail metadata for the item (if provided)"
+    )
+
+    item: dict[str, Any] | None = Field(
+        None, description="Optional item field containing track metadata"
     )
 
     model_config = ConfigDict(title="LikedTrackItem", extra="forbid")
@@ -381,18 +358,10 @@ class Playlist(MongoIdMixin):
 
     model_config = ConfigDict(title="Playlist", extra="forbid", populate_by_name=True)
 
-    @property
-    def _id(self) -> str:
-        return self.playlist_id
-
-    @_id.setter
-    def _id(self, value: str) -> None:
-        self.playlist_id = value
-
 
 class SpotifyCredentials(BaseModel):
     access_token: str = Field(..., description="OAuth access token for Spotify API")
-    expires_in: float = Field(default=0.0, description="Time in seconds until the token expires")
+    expires_at: float = Field(default=0.0, description="Absolute timestamp when the token expires")
     refresh_token: str = Field(..., description="OAuth refresh token to obtain new access tokens")
     scope: str = Field(
         default="user-library-read playlist-modify-public playlist-modify-private",
