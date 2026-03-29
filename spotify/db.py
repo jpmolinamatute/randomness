@@ -1,6 +1,5 @@
 import json
 import logging
-import random
 from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from os import environ
@@ -39,7 +38,6 @@ class DB:
         self.mongo_client: MongoClient[CollType] = MongoClient(mongo_uri)
         self.mongo_db = self.mongo_client[mongo_db_name]
         self.tracks_coll_name = "tracks"
-        self.artist_sampling_ratio = 0.25
 
     def close(self) -> None:
         self.logger.debug("Closing MongoDB client connection")
@@ -69,23 +67,6 @@ class DB:
         self.logger.debug("Retrieving collection: %s", self.tracks_coll_name)
         return self.mongo_db[self.tracks_coll_name]
 
-
-
-    def _randomize(self, whole_sample: list[str]) -> list[str]:
-        self.logger.debug(
-            "Randomizing sample: input_len=%d randomness_percentage=%.2f",
-            len(whole_sample) if isinstance(whole_sample, list) else -1,
-            self.artist_sampling_ratio,
-        )
-        if not isinstance(whole_sample, list):
-            raise ValueError("'whole_sample' must be a list")
-        if not whole_sample:
-            raise ValueError("'whole_sample' must not be empty")
-        max_no_item = len(whole_sample)
-        no_of_item = max(1, int(max_no_item * self.artist_sampling_ratio))
-        self.logger.debug("Sampling without replacement: max=%d pick=%d", max_no_item, no_of_item)
-        return random.sample(whole_sample, no_of_item)
-
     def count_track(self, mongo_filters: Mapping[str, Any]) -> int:
         """Delegate to tracks collection count for testing convenience."""
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
@@ -113,7 +94,7 @@ class DB:
             batch_size = 500
             max_retries = 5
             for i in range(0, len(operations), batch_size):
-                batch = operations[i:i + batch_size]
+                batch = operations[i : i + batch_size]
                 for attempt in range(max_retries):
                     try:
                         self.get_tracks_coll().bulk_write(batch)
@@ -121,10 +102,10 @@ class DB:
                     except AutoReconnect:
                         if attempt == max_retries - 1:
                             raise
-                        self.logger.warning("AutoReconnect in bulk_write (Docker idle timeout). Retrying batch.")
+                        self.logger.warning(
+                            "AutoReconnect in bulk_write (Docker idle timeout). Retrying batch."
+                        )
             self.logger.info("Upserted %d tracks into DB", len(operations))
-
-
 
     def reset_collection(self, collection_name: str) -> None:
         self.logger.debug("Resetting collection: %s", collection_name)
@@ -160,19 +141,6 @@ class DB:
 
         self.logger.info("Exported %d tracks to %s", len(export_data), filename)
 
-    def get_artist_ids(self) -> list[str]:
-        self.logger.debug("Aggregating distinct artist IDs from tracks collection")
-        pipeline: Sequence[Mapping[str, Any]] = [
-            {"$unwind": "$artists"},
-            {"$group": {"_id": "$artists._id"}},
-            {"$project": {"_id": 1}},
-        ]
-        cursor = self.get_tracks_coll().aggregate(pipeline)
-        result = [doc["_id"] for doc in cursor]
-        cursor.close()
-        self.logger.debug("Found %d distinct artist IDs", len(result))
-        return result
-
     def validate_item_count(self, no_items: int) -> None:
         self.logger.debug("Validating requested item count: no_items=%s", no_items)
         if not isinstance(no_items, int):
@@ -207,7 +175,7 @@ class DB:
                     "tracks": {"$push": "$$ROOT"},
                     "created_at": {"$first": datetime.now(UTC)},
                 }
-            }
+            },
         ]
 
         cursor = self.get_tracks_coll().aggregate(pipeline)
@@ -224,39 +192,6 @@ class DB:
 
         return latest_uris
 
-    def generate_random_artists(self, no_items: int) -> list[str]:
-        self.logger.debug("Selecting random artists to build playlist: no_items=%d", no_items)
-        all_artists = self.get_artist_ids()
-        some_artists = self._randomize(all_artists)
-
-        window_size = max(no_items * self.RATIO_WINDOW, self.MAX_SIZE_WINDOW)
-        pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {"artists._id": {"$in": some_artists}}},
-            {"$sort": {"played_at": 1}},
-            {"$limit": window_size},
-            {"$sample": {"size": no_items}},
-            {
-                "$group": {
-                    "_id": ObjectId(),
-                    "tracks": {"$push": "$$ROOT"},
-                    "created_at": {"$first": datetime.now(UTC)},
-                }
-            }
-        ]
-
-        cursor = self.get_tracks_coll().aggregate(pipeline)
-        result = list(cursor)
-        cursor.close()
-
-        latest_uris = [track.get("uri") for track in result[0].get("tracks", [])] if result else []
-
-        if latest_uris:
-            self.get_tracks_coll().update_many(
-                {"uri": {"$in": latest_uris}}, {"$set": {"played_at": datetime.now(UTC)}}
-            )
-
-        return latest_uris
-
     def generate_random_playlist(self, item_type: RandomnessType, no_items: int) -> list[str]:
         self.logger.debug(
             "Dispatching generate_random_playlist: type=%s no_items=%d", item_type, no_items
@@ -264,7 +199,5 @@ class DB:
         self.validate_item_count(no_items)
         if item_type == "track":
             return self.generate_random_tracks(no_items)
-        elif item_type == "artist":
-            return self.generate_random_artists(no_items)
         else:
             raise ValueError("Invalid item type")

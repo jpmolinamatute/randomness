@@ -80,8 +80,6 @@ class Client:
         self.logger.debug("Available device ID: %s", device_id)
         return device_id
 
-
-
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10),
         stop=stop_after_attempt(5),
@@ -157,7 +155,11 @@ class Client:
             # Fetch first batch to get total count
             first_batch = await self.fetch_tracks_batch(client, url, "liked")
             all_tracks.extend(
-                [item.track.model_dump(by_alias=True) for item in first_batch.items if item.track]
+                [
+                    item.track.model_dump(by_alias=True)
+                    for item in first_batch.items
+                    if item.track and item.track.uri
+                ]
             )
 
             total = first_batch.total
@@ -178,7 +180,7 @@ class Client:
                         [
                             item.track.model_dump(by_alias=True)
                             for item in response_data.items
-                            if item.track
+                            if item.track and item.track.uri
                         ]
                     )
 
