@@ -18,14 +18,7 @@ async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
     await sp_auth.load_or_authenticate_tokens()
     sp_client = Client(sp_auth, my_mongo)
 
-    if args.get_all_playlists:
-        await sp_client.get_all_playlists()
-        return
-
-    if args.update_cache:
-        logger.info("Updating local cache of liked tracks")
-        await sp_client.get_all_liked_tracks()
-    elif my_mongo.count_track({}) == 0:
+    if args.update_cache or my_mongo.count_track({}) == 0:
         logger.info("Populating local cache of liked tracks")
         await sp_client.get_all_liked_tracks()
     else:
@@ -37,8 +30,8 @@ async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
         return
 
     await sp_client.delete_all_playlist_tracks()
-    my_mongo.generate_random_playlist("track", 100)
-    await sp_client.populate_playlist_from_db()
+    latest_uris = my_mongo.generate_random_playlist("track", 100)
+    await sp_client.populate_playlist_with_uris(latest_uris)
     await sp_client.update_queue()
     my_mongo.close()
 
@@ -62,9 +55,7 @@ def main() -> None:
         "  # Update local cache from Spotify before generating\n"
         "  ./main.py --update-cache\n\n"
         "  # Export liked tracks to a JSON file\n"
-        "  ./main.py --export\n\n"
-        "  # List all your Spotify playlists\n"
-        "  ./main.py --get-all-playlists",
+        "  ./main.py --export\n\n",
     )
     parser.add_argument(
         "--update-cache",
@@ -77,12 +68,6 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Export liked tracks to a JSON file and exit",
-    )
-    parser.add_argument(
-        "--get-all-playlists",
-        action="store_true",
-        default=False,
-        help="Get all playlists from Spotify",
     )
     args = parser.parse_args()
     try:

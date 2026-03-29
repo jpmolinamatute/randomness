@@ -178,18 +178,15 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_populate_playlist_from_db(client_instance: Client) -> None:
-    """Test populating playlist from DB."""
-    # Cast to MagicMock to satisfy MyPy
-    mock_db_get = cast(MagicMock, client_instance.db.get_latest_playlist_uris)
-    mock_db_get.return_value = ["uri1", "uri2"]
-
+async def test_populate_playlist_with_uris(client_instance: Client) -> None:
+    """Test populating playlist directly with uris."""
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
         mock_response.status_code = 201
         mock_post.return_value = mock_response
 
-        await client_instance.populate_playlist_from_db()
+        test_uris = ["uri1", "uri2"]
+        await client_instance.populate_playlist_with_uris(test_uris)
 
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args

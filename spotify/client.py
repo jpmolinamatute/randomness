@@ -24,7 +24,6 @@ class Client:
         self.logger = logging.getLogger(__name__)
         self.auth = auth
         self.api_url = "https://api.spotify.com/v1"
-
         self.db = my_mongo
         self.spotify_playlist_id = environ["SPOTIFY_PLAYLIST_ID"]
         self.logger.debug(
@@ -81,10 +80,7 @@ class Client:
         self.logger.debug("Available device ID: %s", device_id)
         return device_id
 
-    def read_latest_playlist_track_uris(self) -> list[str]:
-        return self.db.get_latest_playlist_uris()
 
-    # removed `insert_tracks_to_db` since we now accumulate and sync at the end.
 
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -160,7 +156,9 @@ class Client:
         async with httpx.AsyncClient() as client:
             # Fetch first batch to get total count
             first_batch = await self.fetch_tracks_batch(client, url, "liked")
-            all_tracks.extend([item.track.model_dump(by_alias=True) for item in first_batch.items if item.track])
+            all_tracks.extend(
+                [item.track.model_dump(by_alias=True) for item in first_batch.items if item.track]
+            )
 
             total = first_batch.total
             self.logger.info("Total liked tracks to fetch: %d", total)
@@ -176,7 +174,13 @@ class Client:
             if tasks:
                 responses = await asyncio.gather(*tasks)
                 for response_data in responses:
-                    all_tracks.extend([item.track.model_dump(by_alias=True) for item in response_data.items if item.track])
+                    all_tracks.extend(
+                        [
+                            item.track.model_dump(by_alias=True)
+                            for item in response_data.items
+                            if item.track
+                        ]
+                    )
 
         # Do a single sync at the end
         self.db.sync_tracks(all_tracks)
@@ -231,13 +235,12 @@ class Client:
                     self.logger.exception("Failed to delete batch")
                     raise
 
-    async def populate_playlist_from_db(self) -> None:
+    async def populate_playlist_with_uris(self, uri_list: list[str]) -> None:
         self.logger.debug(
             "Generating content in playlist: playlist_id=%s", self.spotify_playlist_id
         )
         self.logger.info("Generating content")
         url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
-        uri_list = self.read_latest_playlist_track_uris()
         self.logger.debug("Preparing to add tracks: total=%d", len(uri_list))
         headers = await self._get_headers()
         headers["Content-Type"] = "application/json"
