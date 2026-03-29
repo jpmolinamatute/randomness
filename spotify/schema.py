@@ -1,8 +1,6 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from spotify.custom_types import ReasonType, TypeType
 
 # Spotify response sample for GET https://api.spotify.com/v1/me/tracks requests
 # {
@@ -19,11 +17,7 @@ from spotify.custom_types import ReasonType, TypeType
 #         "album": {
 #           "album_type": "compilation",
 #           "total_tracks": 9,
-#           "available_markets": [
-#             "CA",
-#             "BR",
-#             "IT"
-#           ],
+#           "available_markets": ["CA", "BR", "IT"],
 #           "external_urls": {
 #             "spotify": "string"
 #           },
@@ -69,9 +63,7 @@ from spotify.custom_types import ReasonType, TypeType
 #             "uri": "string"
 #           }
 #         ],
-#         "available_markets": [
-#           "string"
-#         ],
+#         "available_markets": ["string"],
 #         "disc_number": 0,
 #         "duration_ms": 0,
 #         "explicit": false,
@@ -86,7 +78,8 @@ from spotify.custom_types import ReasonType, TypeType
 #         "href": "string",
 #         "id": "string",
 #         "is_playable": false,
-#         "linked_from": {},
+#         "linked_from": {
+#         },
 #         "restrictions": {
 #           "reason": "string"
 #         },
@@ -103,6 +96,9 @@ from spotify.custom_types import ReasonType, TypeType
 # }
 
 
+type ReasonType = Literal["market", "product", "explicit"]
+
+
 class ExternalUrls(BaseModel):
     spotify: str = Field("", description="Canonical Spotify Web API URL for this object")
 
@@ -110,9 +106,9 @@ class ExternalUrls(BaseModel):
 
 
 class Image(BaseModel):
-    height: int = Field(..., description="Image height in pixels")
+    height: int | None = Field(None, description="Image height in pixels")
     url: str = Field(..., description="Source URL of the image")
-    width: int = Field(..., description="Image width in pixels")
+    width: int | None = Field(None, description="Image width in pixels")
 
     model_config = ConfigDict(title="Image", extra="forbid")
 
@@ -267,8 +263,8 @@ class Track(MongoIdMixin):
 
 
 class Followers(BaseModel):
-    href: str = Field(
-        ..., description="(Currently deprecated) Endpoint for followers data, often null"
+    href: str | None = Field(
+        None, description="(Currently deprecated) Endpoint for followers data, often null"
     )
     total: int = Field(..., description="Total number of followers")
 
@@ -282,9 +278,9 @@ class Owner(MongoIdMixin):
     followers: Followers | None = Field(None, description="Follower count data if available")
     href: str = Field(..., description="Spotify Web API endpoint for this user")
     user_id: str = Field(..., alias="_id", description="User's Spotify ID")
-    type: TypeType = Field(..., description="Object type, always 'user'")
+    type: Literal["user"] = Field(..., description="Object type, always 'user'")
     uri: str = Field(..., description="Spotify URI for the user")
-    display_name: str = Field("", description="User's display name")
+    display_name: str | None = Field(None, description="User's display name")
 
     model_config = ConfigDict(title="Owner", extra="forbid", populate_by_name=True)
 
@@ -353,7 +349,7 @@ class Playlist(MongoIdMixin):
     tracks: LikedTracksResponse = Field(
         ..., description="Track listing object with pagination data"
     )
-    type: TypeType = Field(..., description="Object type, always 'playlist'")
+    type: Literal["playlist"] = Field(..., description="Object type, always 'playlist'")
     uri: str = Field(..., description="Spotify URI for the playlist")
 
     model_config = ConfigDict(title="Playlist", extra="forbid", populate_by_name=True)

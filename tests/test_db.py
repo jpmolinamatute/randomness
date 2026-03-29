@@ -160,7 +160,7 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
     mock_coll.aggregate.return_value = mock_cursor
 
     with patch.object(db_instance, "validate_item_count"):
-        result_uris = db_instance.generate_random_playlist("track", TEST_PLAYLIST_SIZE)
+        result_uris = db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
 
         mock_coll.aggregate.assert_called_once()
         pipeline = mock_coll.aggregate.call_args[0][0]
@@ -176,7 +176,9 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
 
 
 def test_generate_random_playlist_invalid(db_instance: DB) -> None:
-    """Test generate_random_playlist with invalid type."""
-    with patch.object(db_instance, "validate_item_count"):
+    """Test generate_random_playlist with invalid item count."""
+    with patch.object(
+        db_instance, "validate_item_count", side_effect=ValueError("Invalid item type")
+    ):
         with pytest.raises(ValueError, match="Invalid item type"):
-            db_instance.generate_random_playlist("invalid", TEST_PLAYLIST_SIZE)  # type: ignore
+            db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
