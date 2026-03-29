@@ -96,9 +96,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # }
 
 
-type RandomnessType = Literal["track", "artist"]
 type ReasonType = Literal["market", "product", "explicit"]
-type TypeType = Literal["user", "playlist"]
 
 
 class ExternalUrls(BaseModel):
@@ -280,7 +278,7 @@ class Owner(MongoIdMixin):
     followers: Followers | None = Field(None, description="Follower count data if available")
     href: str = Field(..., description="Spotify Web API endpoint for this user")
     user_id: str = Field(..., alias="_id", description="User's Spotify ID")
-    type: TypeType = Field(..., description="Object type, always 'user'")
+    type: Literal["user"] = Field(..., description="Object type, always 'user'")
     uri: str = Field(..., description="Spotify URI for the user")
     display_name: str | None = Field(None, description="User's display name")
 
@@ -351,7 +349,7 @@ class Playlist(MongoIdMixin):
     tracks: LikedTracksResponse = Field(
         ..., description="Track listing object with pagination data"
     )
-    type: TypeType = Field(..., description="Object type, always 'playlist'")
+    type: Literal["playlist"] = Field(..., description="Object type, always 'playlist'")
     uri: str = Field(..., description="Spotify URI for the playlist")
 
     model_config = ConfigDict(title="Playlist", extra="forbid", populate_by_name=True)

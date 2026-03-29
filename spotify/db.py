@@ -11,8 +11,6 @@ from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import AutoReconnect
 
-from spotify.schema import RandomnessType
-
 type CollType = dict[str, Any]
 
 
@@ -192,12 +190,7 @@ class DB:
 
         return latest_uris
 
-    def generate_random_playlist(self, item_type: RandomnessType, no_items: int) -> list[str]:
-        self.logger.debug(
-            "Dispatching generate_random_playlist: type=%s no_items=%d", item_type, no_items
-        )
+    def generate_random_playlist(self, no_items: int) -> list[str]:
+        self.logger.debug("Dispatching generate_random_playlist: no_items=%d", no_items)
         self.validate_item_count(no_items)
-        if item_type == "track":
-            return self.generate_random_tracks(no_items)
-        else:
-            raise ValueError("Invalid item type")
+        return self.generate_random_tracks(no_items)
