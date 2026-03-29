@@ -11,7 +11,7 @@ from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import AutoReconnect
 
-from spotify.custom_types import RandomnessType
+from spotify.schema import RandomnessType
 
 type CollType = dict[str, Any]
 
