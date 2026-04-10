@@ -54,7 +54,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"Authorization successful. You may close this tab.")
             # Invoke callback AFTER responding so browser doesn't hang.
-            self.server.callback(code)  # type: ignore[attr-defined]
+            assert isinstance(self.server, CustomHTTPServer)
+            self.server.callback(code)
         else:
             self.send_response(400)
             self.end_headers()

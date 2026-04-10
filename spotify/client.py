@@ -204,7 +204,9 @@ class Client:
                 if not items:
                     break
 
-                uris = [item.track.uri for item in items if item.track]
+                uris = [
+                    item.track.uri for item in items if item.track and item.track.uri is not None
+                ]
                 if not uris:
                     break
 
