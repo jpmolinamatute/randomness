@@ -96,3 +96,101 @@ def test_is_token_expired(auth_instance: Auth) -> None:
     # Case 2: Not expired
     auth_instance.credentials.expires_at = time.time() + 3600
     assert auth_instance.is_token_expired() is False
+
+
+def test_handle_oauth(auth_instance: Auth) -> None:
+    """Test handle_oauth invokes async token exchange and sets event."""
+    auth_instance.auth_event = MagicMock()
+
+    with patch("asyncio.run") as mock_asyncio_run:
+        with patch.object(
+            auth_instance, "exchange_code_for_token", new_callable=MagicMock
+        ) as mock_exchange:
+            mock_exchange.return_value = "fake_coroutine_object"
+            auth_instance.handle_oauth("test_code")
+
+            mock_exchange.assert_called_once_with("test_code")
+            mock_asyncio_run.assert_called_once()
+            auth_instance.auth_event.set.assert_called_once()
+
+
+def test_start_auth_flow_timeout(auth_instance: Auth) -> None:
+    """Test start_auth_flow gracefully handles timeout wait."""
+    with patch("spotify.auth.CustomHTTPServer") as mock_server:
+        mock_httpd = MagicMock()
+        mock_server.return_value = mock_httpd
+
+        with patch("threading.Thread") as mock_thread_cls:
+            mock_thread = MagicMock()
+            mock_thread_cls.return_value = mock_thread
+
+            with patch("webbrowser.open", return_value=True):
+                # We patch AUTH_TIMEOUT_SECONDS to be extremely low, but patching Event is cleaner
+                with patch("threading.Event") as mock_event_cls:
+                    mock_event = MagicMock()
+                    mock_event.wait.return_value = False  # Simulate timeout
+                    mock_event_cls.return_value = mock_event
+
+                    with pytest.raises(TokenError, match="Timeout waiting for user authorization"):
+                        auth_instance.start_auth_flow()
+
+                    mock_httpd.shutdown.assert_called_once()
+                    mock_thread.join.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_load_or_authenticate_tokens(auth_instance: Auth) -> None:
+    """Test token loader orchestrates properly."""
+    # Test path 1: load fails -> triggers start_auth_flow
+    with patch("spotify.token.Token.load_tokens", side_effect=TokenError("no token")):
+        with patch.object(auth_instance, "start_auth_flow") as mock_start_flow:
+            await auth_instance.load_or_authenticate_tokens()
+            mock_start_flow.assert_called_once()
+
+    # Test path 2: load succeeds, but expired -> triggers refresh
+    auth_instance.credentials.expires_at = time.time() - 1000
+    with patch("spotify.token.Token.load_tokens"):
+        with patch.object(
+            auth_instance, "refresh_access_token", new_callable=AsyncMock
+        ) as mock_refresh:
+            await auth_instance.load_or_authenticate_tokens()
+            mock_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_valid_access_token(auth_instance: Auth) -> None:
+    """Test that accessing tokens automatically refreshes if expired."""
+    auth_instance.credentials.access_token = "valid_tok"
+    auth_instance.credentials.expires_at = time.time() - 1000  # expired
+
+    with patch.object(
+        auth_instance, "refresh_access_token", new_callable=AsyncMock
+    ) as mock_refresh:
+        # We can simulate refresh modifying the access_token
+        async def fake_refresh() -> None:
+            auth_instance.credentials.access_token = "refreshed_tok"
+
+        mock_refresh.side_effect = fake_refresh
+
+        token = await auth_instance.get_valid_access_token()
+        mock_refresh.assert_called_once()
+        assert token == "refreshed_tok"
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_invalid_grant(auth_instance: Auth) -> None:
+    """Test refreshing catching 'invalid_grant' falls back to start_auth_flow."""
+    auth_instance.credentials.refresh_token = "bad_refresh"
+    mock_response_data = {"error": "invalid_grant"}
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        r = MagicMock()
+        r.status_code = 400
+        r.json.return_value = mock_response_data
+        mock_post.return_value = r
+
+        with patch.object(auth_instance, "start_auth_flow") as mock_start_flow:
+            result = await auth_instance.refresh_access_token()
+
+            assert result is None
+            mock_start_flow.assert_called_once()

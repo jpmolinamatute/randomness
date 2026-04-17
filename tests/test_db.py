@@ -3,6 +3,7 @@ from typing import cast
 from unittest.mock import ANY, MagicMock, mock_open, patch
 
 import pytest
+from pymongo.errors import AutoReconnect
 
 from spotify.db import DB
 
@@ -10,6 +11,10 @@ EXPECTED_RANDOM_COUNT = 2
 TEST_PLAYLIST_SIZE = 5
 EXPECTED_TRACK_PIPELINE_SIZE = 4
 EXPECTED_ARTIST_PIPELINE_SIZE = 5
+EXPECTED_SUCCESS_RETRIES = 3
+EXPECTED_MAX_RETRIES = 5
+EXPECTED_EXPORT_COUNT = 2
+EXPECTED_INDEX_COUNT = 3
 
 
 @pytest.fixture
@@ -182,3 +187,101 @@ def test_generate_random_playlist_invalid(db_instance: DB) -> None:
     ):
         with pytest.raises(ValueError, match="Invalid item type"):
             db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
+
+
+def test_sync_tracks_auto_reconnect_success(db_instance: DB) -> None:
+    """Test sync_tracks retries bulk_write on AutoReconnect and eventually succeeds."""
+    mock_coll = MagicMock()
+    mock_db = cast(MagicMock, db_instance.mongo_db)
+    mock_db.__getitem__.return_value = mock_coll
+
+    mock_coll.find.return_value = []
+
+    # Fail 2 times then succeed
+    mock_coll.bulk_write.side_effect = [
+        AutoReconnect("timeout"),
+        AutoReconnect("timeout"),
+        MagicMock(),  # success
+    ]
+
+    tracks = [{"uri": "new_uri"}]
+    db_instance.sync_tracks(tracks)
+
+    # Should be called EXPECTED_SUCCESS_RETRIES times total
+    assert mock_coll.bulk_write.call_count == EXPECTED_SUCCESS_RETRIES
+
+
+def test_sync_tracks_auto_reconnect_failure(db_instance: DB) -> None:
+    """Test sync_tracks retries bulk_write and eventually gives up."""
+    mock_coll = MagicMock()
+    mock_db = cast(MagicMock, db_instance.mongo_db)
+    mock_db.__getitem__.return_value = mock_coll
+
+    mock_coll.find.return_value = []
+
+    # Fail continuously
+    mock_coll.bulk_write.side_effect = AutoReconnect("timeout")
+
+    tracks = [{"uri": "new_uri"}]
+    with pytest.raises(AutoReconnect):
+        db_instance.sync_tracks(tracks)
+
+    assert mock_coll.bulk_write.call_count == EXPECTED_MAX_RETRIES
+
+
+def test_export_to_json_fallback(db_instance: DB) -> None:
+    """Test export_to_json falls back if artists array is empty or missing."""
+    mock_coll = MagicMock()
+    mock_db = cast(MagicMock, db_instance.mongo_db)
+    mock_db.__getitem__.return_value = mock_coll
+
+    mock_coll.find.return_value = [
+        {"_id": "id1", "href": "href1", "name": "Track 1", "artists": []},
+        {"_id": "id2", "href": "href2", "name": "Track 2"},  # Missing artists entirely
+    ]
+
+    with patch("pathlib.Path.open", mock_open()):
+        with patch("json.dump") as mock_json_dump:
+            db_instance.export_to_json()
+            args, _ = mock_json_dump.call_args
+            data = args[0]
+            assert len(data) == EXPECTED_EXPORT_COUNT
+            assert data[0]["artist_name"] == "Unknown"
+            assert data[1]["artist_name"] == "Unknown"
+
+
+def test_generate_random_playlist_empty_aggregate(db_instance: DB) -> None:
+    """Test generate_random_playlist when aggregate returns empty."""
+    mock_coll = MagicMock()
+    mock_db = cast(MagicMock, db_instance.mongo_db)
+    mock_db.__getitem__.return_value = mock_coll
+
+    mock_cursor = MagicMock()
+    mock_cursor.__iter__.return_value = []
+    mock_coll.aggregate.return_value = mock_cursor
+
+    with patch.object(db_instance, "validate_item_count"):
+        result_uris = db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
+
+        mock_coll.aggregate.assert_called_once()
+        mock_coll.update_many.assert_not_called()
+        assert result_uris == []
+
+
+def test_check_connection_indexes(db_instance: DB) -> None:
+    """Test check_connection initializes DB indexes."""
+    mock_client = cast(MagicMock, db_instance.mongo_client)
+    mock_client.server_info.return_value = {"version": "4.4"}
+
+    mock_coll = MagicMock()
+    mock_db = cast(MagicMock, db_instance.mongo_db)
+    mock_db.__getitem__.return_value = mock_coll
+
+    assert db_instance.check_connection() is True
+
+    assert mock_coll.create_index.call_count == EXPECTED_INDEX_COUNT
+    # check that we called create_index with expected keys
+    calls = mock_coll.create_index.call_args_list
+    assert calls[0][0][0] == "uri"
+    assert calls[1][0][0] == "played_at"
+    assert calls[2][0][0] == "artists._id"

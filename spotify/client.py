@@ -71,13 +71,13 @@ class Client:
             )
         response.raise_for_status()
         response_data = response.json()
-        if (
-            "devices" in response_data
-            and response_data["devices"]
-            and "id" in response_data["devices"][0]
-        ):
-            device_id = response_data["devices"][0]["id"]
-        self.logger.debug("Available device ID: %s", device_id)
+
+        devices = response_data.get("devices", [])
+        for d in devices:
+            self.logger.info(f"Name: '{d.get('name')}' ID: '{d.get('id')}'")
+            if d.get("is_active"):
+                device_id = d.get("id")
+                break
         return device_id
 
     @retry(
@@ -224,7 +224,7 @@ class Client:
     async def delete_all_playlist_tracks(self) -> None:
         self.logger.debug("Deleting playlist content: playlist_id=%s", self.spotify_playlist_id)
         self.logger.info("Deleting playlist content")
-        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
+        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
 
         async with httpx.AsyncClient() as client:
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
@@ -232,7 +232,7 @@ class Client:
             # Use async generator to process batches
             async for batch_uris in self._yield_playlist_tracks_batches(client):
                 self.logger.debug("Deleting batch: size=%d", len(batch_uris))
-                data = {"tracks": [{"uri": uri} for uri in batch_uris]}
+                data = {"items": [{"uri": uri} for uri in batch_uris]}
                 try:
                     await self.delete_with_sem(client, sem, url, data)
                 except Exception:
@@ -244,7 +244,7 @@ class Client:
             "Generating content in playlist: playlist_id=%s", self.spotify_playlist_id
         )
         self.logger.info("Generating content")
-        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
+        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
         self.logger.debug("Preparing to add tracks: total=%d", len(uri_list))
         headers = await self._get_headers()
         headers["Content-Type"] = "application/json"
