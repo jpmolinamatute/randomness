@@ -6,7 +6,6 @@ from os import environ
 from pathlib import Path
 from typing import Any
 
-from bson import ObjectId
 from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import AutoReconnect
@@ -21,7 +20,6 @@ class DB:
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
-        # Read connection settings from environment and initialize client/db.
         mongo_user = environ["MONGO_INITDB_ROOT_USERNAME"]
         mongo_password = environ["MONGO_INITDB_ROOT_PASSWORD"]
         mongo_db_name = environ["MONGO_INITDB_DATABASE"]
@@ -164,14 +162,13 @@ class DB:
 
         window_size = max(no_items * self.RATIO_WINDOW, self.MAX_SIZE_WINDOW)
         pipeline: Sequence[Mapping[str, Any]] = [
-            {"$sort": {"played_at": 1}},
+            {"$sort": {"played_at": 1, "name": 1}},
             {"$limit": window_size},
             {"$sample": {"size": no_items}},
             {
                 "$group": {
-                    "_id": ObjectId(),
-                    "tracks": {"$push": "$$ROOT"},
-                    "created_at": {"$first": datetime.now(UTC)},
+                    "_id": None,
+                    "tracks": {"$push": "$uri"},
                 }
             },
         ]
@@ -180,17 +177,21 @@ class DB:
         result = list(cursor)
         cursor.close()
 
-        latest_uris = [track.get("uri") for track in result[0].get("tracks", [])] if result else []
+        if not result:
+            raise ValueError("No tracks found in the database")
 
-        if latest_uris:
-            self.get_tracks_coll().update_many(
-                {"uri": {"$in": latest_uris}}, {"$set": {"played_at": datetime.now(UTC)}}
-            )
-            self.logger.debug("Marked %d tracks as played", len(latest_uris))
-
+        latest_uris = result[0].get("tracks", [])
         return latest_uris
+
+    def update_played_at(self, latest_uris: list[str]) -> None:
+        self.get_tracks_coll().update_many(
+            {"uri": {"$in": latest_uris}}, {"$set": {"played_at": datetime.now(UTC)}}
+        )
+        self.logger.debug("Marked %d tracks as played", len(latest_uris))
 
     def generate_random_playlist(self, no_items: int) -> list[str]:
         self.logger.debug("Dispatching generate_random_playlist: no_items=%d", no_items)
         self.validate_item_count(no_items)
-        return self.generate_random_tracks(no_items)
+        latest_uris = self.generate_random_tracks(no_items)
+        self.update_played_at(latest_uris)
+        return latest_uris

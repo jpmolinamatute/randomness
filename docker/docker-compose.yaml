@@ -9,9 +9,13 @@ services:
       - ./mongod.conf:/etc/mongo/mongod.conf
       - mongodb_data:/data/db
     environment:
-      GLIBC_TUNABLES: glibc.pthread.rseq=0
+      GLIBC_TUNABLES: "glibc.pthread.rseq=1"
     env_file:
       - ../.env
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
 
 volumes:
   mongodb_data:

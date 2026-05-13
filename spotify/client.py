@@ -74,7 +74,6 @@ class Client:
 
         devices = response_data.get("devices", [])
         for d in devices:
-            self.logger.info(f"Name: '{d.get('name')}' ID: '{d.get('id')}'")
             if d.get("is_active"):
                 device_id = d.get("id")
                 break
@@ -275,21 +274,18 @@ class Client:
         if not device_id:
             self.logger.error("No available device found")
             return
+        url = f"{self.api_url}/me/player/play?device_id={device_id}"
         self.logger.info("Updating playlist queue")
-        url = f"{self.api_url}/me/player/play"
-        if device_id:
-            url += f"?device_id={device_id}"
-
         playlist_uri = f"spotify:playlist:{self.spotify_playlist_id}"
         headers = await self._get_headers()
         headers["Content-Type"] = "application/json"
-        real_data = {
+        data = {
             "context_uri": playlist_uri,
             "offset": {"position": 0},
         }
         self.logger.debug("updating queue with playlist URI: %s", playlist_uri)
         async with httpx.AsyncClient() as client:
-            response = await client.put(url, headers=headers, json=real_data, timeout=self.TIMEOUT)
+            response = await client.put(url, headers=headers, json=data, timeout=self.TIMEOUT)
         response.raise_for_status()
 
     async def get_all_playlists(self) -> None:

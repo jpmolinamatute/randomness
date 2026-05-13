@@ -161,7 +161,7 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
     mock_db.__getitem__.return_value = mock_coll
 
     mock_cursor = MagicMock()
-    mock_cursor.__iter__.return_value = [{"tracks": [{"uri": "uri_ex1"}, {"uri": "uri_ex2"}]}]
+    mock_cursor.__iter__.return_value = [{"tracks": ["uri_ex1", "uri_ex2"]}]
     mock_coll.aggregate.return_value = mock_cursor
 
     with patch.object(db_instance, "validate_item_count"):
@@ -174,9 +174,6 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
         assert pipeline[2]["$sample"]["size"] == TEST_PLAYLIST_SIZE
         assert len(pipeline) == EXPECTED_TRACK_PIPELINE_SIZE  # $sort, $limit, $sample, $group
 
-        mock_coll.update_many.assert_called_once_with(
-            {"uri": {"$in": ["uri_ex1", "uri_ex2"]}}, {"$set": {"played_at": ANY}}
-        )
         assert result_uris == ["uri_ex1", "uri_ex2"]
 
 
@@ -261,11 +258,11 @@ def test_generate_random_playlist_empty_aggregate(db_instance: DB) -> None:
     mock_coll.aggregate.return_value = mock_cursor
 
     with patch.object(db_instance, "validate_item_count"):
-        result_uris = db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
+        with pytest.raises(ValueError, match="No tracks found in the database"):
+            db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
 
         mock_coll.aggregate.assert_called_once()
         mock_coll.update_many.assert_not_called()
-        assert result_uris == []
 
 
 def test_check_connection_indexes(db_instance: DB) -> None:
