@@ -1,6 +1,6 @@
 # pylint: disable=redefined-outer-name
 from typing import cast
-from unittest.mock import ANY, MagicMock, mock_open, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 from pymongo.errors import AutoReconnect
