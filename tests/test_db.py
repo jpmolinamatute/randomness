@@ -175,6 +175,10 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
         assert len(pipeline) == EXPECTED_TRACK_PIPELINE_SIZE  # $sort, $limit, $sample, $group
 
         assert result_uris == ["uri_ex1", "uri_ex2"]
+        mock_coll.update_many.assert_called_once()
+        update_args = mock_coll.update_many.call_args[0]
+        assert update_args[0] == {"uri": {"$in": ["uri_ex1", "uri_ex2"]}}
+        assert "played_at" in update_args[1]["$set"]
 
 
 def test_generate_random_playlist_invalid(db_instance: DB) -> None:
