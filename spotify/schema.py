@@ -1,6 +1,21 @@
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+type HeadersType = dict[str, str]
+
+
+class DeletePlaylistItem(TypedDict):
+    uri: str
+
+
+class DeletePlaylistPayload(TypedDict):
+    items: list[DeletePlaylistItem]
+
+
+class AddPlaylistPayload(TypedDict):
+    uris: list[str]
+
 
 # Spotify response sample for GET https://api.spotify.com/v1/me/tracks requests
 # {
@@ -120,8 +135,8 @@ class MongoIdMixin(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_id(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "id" in data and "_id" not in data:
+    def _normalize_id(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if "id" in data and "_id" not in data:
             data["_id"] = data.pop("id")
         return data
 
@@ -239,8 +254,8 @@ class Track(MongoIdMixin):
     track_number: int | None = Field(None, description="Position of the track on its disc")
     type: str = Field(..., description="Object type, should be 'track'")
     uri: str = Field(..., description="Spotify URI for the track")
-    is_local: bool | None = Field(
-        None, description="True if the track is a local file added by the user"
+    is_local: bool = Field(
+        default=False, description="True if the track is a local file added by the user"
     )
     album: Album | None = Field(None, description="Album object that the track belongs to")
     artists: list[Artist] | None = Field(

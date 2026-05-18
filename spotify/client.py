@@ -3,28 +3,18 @@ import logging
 from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from os import environ
-from typing import TypedDict
 
 import httpx
 from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponential
 
 from spotify.auth import Auth
 from spotify.db import DB
-from spotify.schema import LikedTracksResponse
-
-type HeadersType = dict[str, str]
-
-
-class DeletePlaylistItem(TypedDict):
-    uri: str
-
-
-class DeletePlaylistPayload(TypedDict):
-    items: list[DeletePlaylistItem]
-
-
-class AddPlaylistPayload(TypedDict):
-    uris: list[str]
+from spotify.schema import (
+    AddPlaylistPayload,
+    DeletePlaylistPayload,
+    HeadersType,
+    LikedTracksResponse,
+)
 
 
 class Client:

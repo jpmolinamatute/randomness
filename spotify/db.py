@@ -4,13 +4,15 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from os import environ
 from pathlib import Path
-from typing import Any
 
 from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import AutoReconnect
 
 from spotify.schema import Track
+
+type MongoFilter = Mapping[str, object]
+type MongoPipeline = Sequence[Mapping[str, object]]
 
 
 class DB:
@@ -63,7 +65,7 @@ class DB:
         self.logger.debug("Retrieving collection: %s", self.tracks_coll_name)
         return self.mongo_db[self.tracks_coll_name]
 
-    def count_track(self, mongo_filters: Mapping[str, Any]) -> int:
+    def count_track(self, mongo_filters: MongoFilter) -> int:
         """Delegate to tracks collection count for testing convenience."""
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
         return self.get_tracks_coll().count_documents(mongo_filters)
@@ -161,7 +163,7 @@ class DB:
         )
 
         window_size = max(no_items * self.RATIO_WINDOW, self.MAX_SIZE_WINDOW)
-        pipeline: Sequence[Mapping[str, Any]] = [
+        pipeline: MongoPipeline = [
             {"$sort": {"played_at": 1, "name": 1}},
             {"$limit": window_size},
             {"$sample": {"size": no_items}},
