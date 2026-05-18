@@ -131,7 +131,7 @@ async def test_get_all_liked_tracks(client_instance: Client) -> None:
         # We expect 2 tracks to be inserted
         _, _ = mock_db_insert.call_args
         assert len(mock_db_insert.call_args[0][0]) == EXPECTED_TRACKS_COUNT
-        assert mock_db_insert.call_args[0][0][0]["uri"] == "spotify:track:1"
+        assert mock_db_insert.call_args[0][0][0].uri == "spotify:track:1"
 
 
 @pytest.mark.asyncio

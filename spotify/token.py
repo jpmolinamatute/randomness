@@ -1,8 +1,14 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from pydantic import BaseModel, PrivateAttr
+
+
+class TokenData(TypedDict):
+    access_token: str
+    refresh_token: str
+    token_expires_at: float
 
 
 class TokenError(Exception):
@@ -39,8 +45,8 @@ class Token(BaseModel):
             raise TokenError("Token file not found")
         try:
             with self._file_path.open(encoding="utf-8") as file:
-                token_data: dict[str, Any] = json.load(file)
-        except Exception as exc:  # noqa: BLE001
+                token_data: TokenData = json.load(file)
+        except Exception as exc:
             raise TokenError(f"Failed reading token file: {exc}") from exc
         try:
             self.access_token = token_data["access_token"]
@@ -59,5 +65,5 @@ class Token(BaseModel):
         try:
             with self._file_path.open("w", encoding="utf-8") as file:
                 json.dump(token_data, file, indent=4)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise TokenError(f"Failed storing token file: {exc}") from exc

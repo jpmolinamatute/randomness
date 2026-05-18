@@ -1,6 +1,21 @@
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+type HeadersType = dict[str, str]
+
+
+class DeletePlaylistItem(TypedDict):
+    uri: str
+
+
+class DeletePlaylistPayload(TypedDict):
+    items: list[DeletePlaylistItem]
+
+
+class AddPlaylistPayload(TypedDict):
+    uris: list[str]
+
 
 # Spotify response sample for GET https://api.spotify.com/v1/me/tracks requests
 # {
@@ -120,8 +135,8 @@ class MongoIdMixin(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_id(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "id" in data and "_id" not in data:
+    def _normalize_id(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if "id" in data and "_id" not in data:
             data["_id"] = data.pop("id")
         return data
 
@@ -209,38 +224,38 @@ class Restrictions(BaseModel):
 
 
 class Track(MongoIdMixin):
-    track_id: str | None = Field(None, alias="_id", description="Spotify ID of the track")
+    track_id: str = Field(..., alias="_id", description="Spotify ID of the track")
     available_markets: list[str] | None = Field(
         None, description="Country codes where the track can be streamed"
     )
     disc_number: int | None = Field(
         None, description="Disc number (for albums with multiple discs)"
     )
-    duration_ms: int | None = Field(None, description="Track length in milliseconds")
-    explicit: bool | None = Field(None, description="True if the track has explicit lyrics/content")
+    duration_ms: int = Field(..., description="Track length in milliseconds")
+    explicit: bool = Field(..., description="True if the track has explicit lyrics/content")
     external_ids: ExternalIds | None = Field(
         None, description="External identifier set for the track (ISRC, EAN, UPC)"
     )
     external_urls: ExternalUrls | None = Field(
         None, description="External URLs for this track (Spotify link)"
     )
-    href: str | None = Field(None, description="Spotify Web API endpoint for this track")
+    href: str = Field(..., description="Spotify Web API endpoint for this track")
     is_playable: bool | None = Field(
         None, description="Whether the track is playable in the user's market"
     )
     restrictions: Restrictions | None = Field(
         None, description="Market or content restrictions for the track, if any"
     )
-    name: str | None = Field(None, description="Track name")
+    name: str = Field(..., description="Track name")
     popularity: int | None = Field(
         None, description="Popularity (0-100) based on Spotify play metrics"
     )
     preview_url: str | None = Field(None, description="30-second MP3 preview URL if available")
     track_number: int | None = Field(None, description="Position of the track on its disc")
-    type: str | None = Field(None, description="Object type, should be 'track'")
-    uri: str | None = Field(None, description="Spotify URI for the track")
-    is_local: bool | None = Field(
-        None, description="True if the track is a local file added by the user"
+    type: str = Field(..., description="Object type, should be 'track'")
+    uri: str = Field(..., description="Spotify URI for the track")
+    is_local: bool = Field(
+        default=False, description="True if the track is a local file added by the user"
     )
     album: Album | None = Field(None, description="Album object that the track belongs to")
     artists: list[Artist] | None = Field(
@@ -307,10 +322,6 @@ class LikedTrackItem(BaseModel):
     )
     video_thumbnail: VideoThumbnail | None = Field(
         None, description="Video thumbnail metadata for the item (if provided)"
-    )
-
-    item: dict[str, Any] | None = Field(
-        None, description="Optional item field containing track metadata"
     )
 
     model_config = ConfigDict(title="LikedTrackItem", extra="forbid")

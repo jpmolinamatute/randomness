@@ -6,6 +6,7 @@ import pytest
 from pymongo.errors import AutoReconnect
 
 from spotify.db import DB
+from spotify.schema import Track
 
 EXPECTED_RANDOM_COUNT = 2
 TEST_PLAYLIST_SIZE = 5
@@ -84,7 +85,17 @@ def test_sync_tracks(db_instance: DB) -> None:
     mock_db.__getitem__.return_value = mock_coll
 
     mock_coll.find.return_value = [{"uri": "old_uri"}]
-    tracks = [{"uri": "new_uri"}]
+    tracks = [
+        Track(
+            uri="new_uri",
+            type="track",
+            href="https://api.spotify.com/v1/tracks/new_uri",
+            _id="new_uri",
+            name="Track 1",
+            duration_ms=1000,
+            explicit=False,
+        )
+    ]
     db_instance.sync_tracks(tracks)
 
     mock_coll.delete_many.assert_called_with({"uri": {"$in": ["old_uri"]}})
@@ -205,7 +216,17 @@ def test_sync_tracks_auto_reconnect_success(db_instance: DB) -> None:
         MagicMock(),  # success
     ]
 
-    tracks = [{"uri": "new_uri"}]
+    tracks = [
+        Track(
+            uri="new_uri",
+            type="track",
+            href="https://api.spotify.com/v1/tracks/new_uri",
+            _id="new_uri",
+            name="Track 1",
+            duration_ms=1000,
+            explicit=False,
+        )
+    ]
     db_instance.sync_tracks(tracks)
 
     # Should be called EXPECTED_SUCCESS_RETRIES times total
@@ -223,7 +244,17 @@ def test_sync_tracks_auto_reconnect_failure(db_instance: DB) -> None:
     # Fail continuously
     mock_coll.bulk_write.side_effect = AutoReconnect("timeout")
 
-    tracks = [{"uri": "new_uri"}]
+    tracks = [
+        Track(
+            uri="new_uri",
+            type="track",
+            href="https://api.spotify.com/v1/tracks/new_uri",
+            _id="new_uri",
+            name="Track 1",
+            duration_ms=1000,
+            explicit=False,
+        )
+    ]
     with pytest.raises(AutoReconnect):
         db_instance.sync_tracks(tracks)
 

@@ -5,7 +5,7 @@ import time
 import webbrowser
 from http import HTTPStatus
 from os import environ
-from typing import Any, TypedDict
+from typing import NotRequired, TypedDict
 
 import httpx
 import pkce
@@ -18,6 +18,14 @@ from spotify.token import Token, TokenError
 class SpotifyError(TypedDict):
     status: int
     message: str
+
+
+class SpotifyTokenResponse(TypedDict):
+    access_token: str
+    expires_in: int
+    refresh_token: NotRequired[str]
+    scope: NotRequired[str]
+    token_type: NotRequired[str]
 
 
 class Auth:
@@ -84,7 +92,7 @@ class Auth:
         return now >= (expires_at - self.REFRESH_LEEWAY_SECONDS)
 
     def build_and_store_token(
-        self, data: dict[str, Any], previous_refresh_token: str | None = None
+        self, data: SpotifyTokenResponse, previous_refresh_token: str | None = None
     ) -> Token:
         """Create and persist a Token from raw response JSON."""
         self.logger.debug(
