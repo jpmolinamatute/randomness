@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from os import environ
-from typing import Any
+from typing import TypedDict
 
 import httpx
 from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponential
@@ -11,6 +11,20 @@ from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponentia
 from spotify.auth import Auth
 from spotify.db import DB
 from spotify.schema import LikedTracksResponse
+
+type HeadersType = dict[str, str]
+
+
+class DeletePlaylistItem(TypedDict):
+    uri: str
+
+
+class DeletePlaylistPayload(TypedDict):
+    items: list[DeletePlaylistItem]
+
+
+class AddPlaylistPayload(TypedDict):
+    uris: list[str]
 
 
 class Client:
@@ -32,7 +46,7 @@ class Client:
             self.spotify_playlist_id,
         )
 
-    async def _get_headers(self) -> dict[str, str]:
+    async def _get_headers(self) -> HeadersType:
         self.logger.debug("Generating request headers using current access token")
         access_token = await self.auth.get_valid_access_token()
         self.logger.debug("Access token obtained: length=%d", len(access_token or ""))
@@ -94,7 +108,7 @@ class Client:
         retry=retry_if_result(lambda r: r.status_code == HTTPStatus.TOO_MANY_REQUESTS),
     )
     async def _make_delete_request(
-        self, client: httpx.AsyncClient, url: str, json_data: dict[str, Any]
+        self, client: httpx.AsyncClient, url: str, json_data: DeletePlaylistPayload
     ) -> httpx.Response:
         headers = await self._get_headers()
         headers["Content-Type"] = "application/json"
@@ -138,7 +152,11 @@ class Client:
             return await self.fetch_tracks_batch(client, url, "liked")
 
     async def delete_with_sem(
-        self, client: httpx.AsyncClient, sem: asyncio.Semaphore, url: str, json_data: dict[str, Any]
+        self,
+        client: httpx.AsyncClient,
+        sem: asyncio.Semaphore,
+        url: str,
+        json_data: DeletePlaylistPayload,
     ) -> httpx.Response:
         async with sem:
             return await self._make_delete_request(client, url, json_data)
@@ -153,13 +171,7 @@ class Client:
         async with httpx.AsyncClient() as client:
             # Fetch first batch to get total count
             first_batch = await self.fetch_tracks_batch(client, url, "liked")
-            all_tracks.extend(
-                [
-                    item.track.model_dump(by_alias=True)
-                    for item in first_batch.items
-                    if item.track and item.track.uri
-                ]
-            )
+            all_tracks.extend([item.track for item in first_batch.items if item.track])
 
             total = first_batch.total
             self.logger.info("Total liked tracks to fetch: %d", total)
@@ -175,13 +187,7 @@ class Client:
             if tasks:
                 responses = await asyncio.gather(*tasks)
                 for response_data in responses:
-                    all_tracks.extend(
-                        [
-                            item.track.model_dump(by_alias=True)
-                            for item in response_data.items
-                            if item.track and item.track.uri
-                        ]
-                    )
+                    all_tracks.extend([item.track for item in response_data.items if item.track])
 
         # Do a single sync at the end
         self.db.sync_tracks(all_tracks)
@@ -203,9 +209,7 @@ class Client:
                 if not items:
                     break
 
-                uris = [
-                    item.track.uri for item in items if item.track and item.track.uri is not None
-                ]
+                uris = [item.track.uri for item in items if item.track]
                 if not uris:
                     break
 
@@ -231,7 +235,7 @@ class Client:
             # Use async generator to process batches
             async for batch_uris in self._yield_playlist_tracks_batches(client):
                 self.logger.debug("Deleting batch: size=%d", len(batch_uris))
-                data = {"items": [{"uri": uri} for uri in batch_uris]}
+                data: DeletePlaylistPayload = {"items": [{"uri": uri} for uri in batch_uris]}
                 try:
                     await self.delete_with_sem(client, sem, url, data)
                 except Exception:
@@ -251,7 +255,7 @@ class Client:
         async with httpx.AsyncClient() as client:
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
 
-            async def post_with_sem(url: str, json_data: dict[str, Any]) -> httpx.Response:
+            async def post_with_sem(url: str, json_data: AddPlaylistPayload) -> httpx.Response:
                 async with sem:
                     return await client.post(
                         url, headers=headers, json=json_data, timeout=self.TIMEOUT
@@ -263,7 +267,7 @@ class Client:
                 self.logger.debug("Adding batch to playlist: size=%d index=%d", len(batch), i)
                 # Note: We remove 'position' to allow concurrent appends.
                 # Order of blocks might vary but it's acceptable for randomness.
-                data = {"uris": batch}
+                data: AddPlaylistPayload = {"uris": batch}
                 tasks.append(post_with_sem(url, data))
             responses = await asyncio.gather(*tasks)
             for response in responses:

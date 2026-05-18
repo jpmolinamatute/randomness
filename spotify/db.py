@@ -10,7 +10,7 @@ from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import AutoReconnect
 
-type CollType = dict[str, Any]
+from spotify.schema import Track
 
 
 class DB:
@@ -31,7 +31,7 @@ class DB:
         )
         # Do not log raw password; mask if ever needed.
         mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017/?maxIdleTimeMS=50000"
-        self.mongo_client: MongoClient[CollType] = MongoClient(mongo_uri)
+        self.mongo_client = MongoClient(mongo_uri)
         self.mongo_db = self.mongo_client[mongo_db_name]
         self.tracks_coll_name = "tracks"
 
@@ -59,7 +59,7 @@ class DB:
             is_up = False
         return is_up
 
-    def get_tracks_coll(self) -> Collection[CollType]:
+    def get_tracks_coll(self) -> Collection:
         self.logger.debug("Retrieving collection: %s", self.tracks_coll_name)
         return self.mongo_db[self.tracks_coll_name]
 
@@ -68,12 +68,12 @@ class DB:
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
         return self.get_tracks_coll().count_documents(mongo_filters)
 
-    def sync_tracks(self, tracks: list[dict[str, Any]]) -> None:
+    def sync_tracks(self, tracks: list[Track]) -> None:
         self.logger.debug("Syncing tracks to MongoDB: sum=%d", len(tracks))
 
         existing_uris_cursor = self.get_tracks_coll().find({}, {"uri": 1})
-        existing_uris = {doc.get("uri") for doc in existing_uris_cursor if doc.get("uri")}
-        incoming_uris = {t.get("uri") for t in tracks if t.get("uri")}
+        existing_uris = {doc.get("uri") for doc in existing_uris_cursor}
+        incoming_uris = {t.uri for t in tracks}
 
         uris_to_delete = existing_uris - incoming_uris
         if uris_to_delete:
@@ -83,11 +83,11 @@ class DB:
         operations = []
         for t in tracks:
             # Upsert track metadata, preserve or initialize played_at
-            update_doc = {"$set": t, "$setOnInsert": {"played_at": None}}
-            operations.append(UpdateOne({"uri": t["uri"]}, update_doc, upsert=True))
+            update_doc = {"$set": t.model_dump(by_alias=True), "$setOnInsert": {"played_at": None}}
+            operations.append(UpdateOne({"uri": t.uri}, update_doc, upsert=True))
 
         if operations:
-            batch_size = 500
+            batch_size = 1000
             max_retries = 5
             for i in range(0, len(operations), batch_size):
                 batch = operations[i : i + batch_size]
