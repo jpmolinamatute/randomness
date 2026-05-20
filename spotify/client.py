@@ -14,6 +14,7 @@ from spotify.schema import (
     DeletePlaylistPayload,
     HeadersType,
     LikedTracksResponse,
+    PlaylistItems,
 )
 
 
@@ -49,7 +50,11 @@ class Client:
             if len(url) <= self.MAX_LOG_URL_LENGTH
             else url[: self.MAX_LOG_URL_LENGTH - 3] + "...",
         )
-        temp_list = url.split("?")[1].split("&")
+        url_parts = url.split("?")
+        valid_number_of_parts = 2
+        temp_list: list[str] = []
+        if len(url_parts) == valid_number_of_parts:
+            temp_list = url_parts[1].split("&")
         from_value = 0
         to_value = 0
         for item in temp_list:
@@ -106,24 +111,17 @@ class Client:
             "DELETE", url, headers=headers, json=json_data, timeout=self.TIMEOUT
         )
 
-    async def fetch_tracks_batch(
-        self, client: httpx.AsyncClient, url: str, msg: str
-    ) -> LikedTracksResponse:
-        self.logger.debug(
-            "Fetching liked tracks batch: url=%s kind=%s timeout=%ss",
+    async def fetch_liked_items(self, client: httpx.AsyncClient, url: str) -> LikedTracksResponse:
+        human_readable = self.describe_paging_window(url)
+        self.logger.info(
+            "Fetching liked tracks batch: url=%s human_readable=%s timeout=%ss",
             url,
-            msg,
+            human_readable,
             self.TIMEOUT,
         )
-
-        human_readable = self.describe_paging_window(url)
-        self.logger.info("Getting batch of %s tracks %s", msg, human_readable)
-
         response = await self._make_get_request(client, url)
         response.raise_for_status()
         response_data = response.json()
-        if "tracks" in response_data:
-            response_data = response_data["tracks"]
 
         try:
             result = LikedTracksResponse(**response_data)
@@ -131,15 +129,42 @@ class Client:
                 "Parsed LikedTracksResponse: items=%d next=%s", len(result.items), bool(result.next)
             )
         except Exception as e:
-            self.logger.error("Error found processing %s: %s", msg, e)
+            self.logger.error("Error found %s", e)
+            raise
+        return result
+
+    async def fetch_playlist_items(self, client: httpx.AsyncClient, url: str) -> PlaylistItems:
+        human_readable = self.describe_paging_window(url)
+        self.logger.info(
+            "Fetching playlist items: url=%s human_readable=%s timeout=%ss",
+            url,
+            human_readable,
+            self.TIMEOUT,
+        )
+        response = await self._make_get_request(client, url)
+        response.raise_for_status()
+        response_data = response.json()
+
+        try:
+            result = PlaylistItems(**response_data)
+            self.logger.debug(
+                "Parsed PlaylistItems: items=%d next=%s", len(result.items), bool(result.next)
+            )
+        except Exception as e:
+            self.logger.error("Error found %s", e)
             raise
         return result
 
     async def fetch_with_sem(
         self, client: httpx.AsyncClient, sem: asyncio.Semaphore, url: str
-    ) -> LikedTracksResponse:
+    ) -> LikedTracksResponse | PlaylistItems:
         async with sem:
-            return await self.fetch_tracks_batch(client, url, "liked")
+            if f"/playlists/{self.spotify_playlist_id}/items" in url:
+                return await self.fetch_playlist_items(client, url)
+            elif "/me/tracks" in url:
+                return await self.fetch_liked_items(client, url)
+            else:
+                raise ValueError(f"Invalid URL for fetch_with_sem: {url}")
 
     async def delete_with_sem(
         self,
@@ -155,22 +180,15 @@ class Client:
         self.logger.debug("Starting retrieval of all liked tracks")
         self.logger.info("Getting all liked tracks")
         url = f"{self.api_url}/me/tracks?offset=0&limit={self.ME_BATCH_SIZE}"
-
         all_tracks = []
 
         async with httpx.AsyncClient() as client:
-            # Fetch first batch to get total count
-            first_batch = await self.fetch_tracks_batch(client, url, "liked")
+            first_batch = await self.fetch_liked_items(client, url)
             all_tracks.extend([item.track for item in first_batch.items if item.track])
-
-            total = first_batch.total
-            self.logger.info("Total liked tracks to fetch: %d", total)
-
-            # Generate tasks for remaining batches
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
 
             tasks = []
-            for offset in range(self.ME_BATCH_SIZE, total, self.ME_BATCH_SIZE):
+            for offset in range(self.ME_BATCH_SIZE, first_batch.total, self.ME_BATCH_SIZE):
                 next_url = f"{self.api_url}/me/tracks?offset={offset}&limit={self.ME_BATCH_SIZE}"
                 tasks.append(self.fetch_with_sem(client, sem, next_url))
 
@@ -187,27 +205,23 @@ class Client:
         self, client: httpx.AsyncClient
     ) -> AsyncGenerator[list[str]]:
         """Yield batches of track URIs from the playlist, always fetching from offset 0."""
-        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/tracks"
+        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
         while True:
-            # Always fetch from offset 0 because we delete the previous batch
-            batch_url = f"{url}?offset=0&limit={self.BATCH_SIZE}"
             try:
-                # We reuse fetch_tracks_batch but need to be careful with the 'next' url
-                # actually fetch_tracks_batch does GET.
-                response_data = await self.fetch_tracks_batch(client, batch_url, "playlist_tracks")
+                response_data = await self.fetch_playlist_items(client, url)
                 items = response_data.items
                 if not items:
                     break
 
-                uris = [item.track.uri for item in items if item.track]
+                uris = [playlist_item.item.uri for playlist_item in items if playlist_item.item]
                 if not uris:
                     break
 
                 yield uris
 
-                # If the total items reported in this response is <= our batch size,
+                # If the total items reported in this response is <= what we just processed,
                 # then this is the last batch and we don't need to fetch again.
-                if response_data.total <= self.BATCH_SIZE:
+                if response_data.total <= len(uris):
                     break
 
             except Exception:
