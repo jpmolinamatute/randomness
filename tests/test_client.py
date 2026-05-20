@@ -6,7 +6,16 @@ import pytest
 from pydantic import ValidationError
 
 from spotify.client import Client
-from spotify.schema import LikedTrackItem, LikedTracksResponse
+from spotify.schema import (
+    ExternalUrls,
+    Followers,
+    LikedTracksResponse,
+    Owner,
+    PlaylistItem,
+    PlaylistItems,
+    PlaylistResponse,
+    VideoThumbnail,
+)
 
 EXPECTED_TRACKS_COUNT = 2
 EXPECTED_DELETE_COUNT = 3
@@ -43,57 +52,49 @@ async def test_get_available_device_id(client_instance: Client) -> None:
 
 
 def get_valid_track_data(uri: str = "spotify:track:1", name: str = "Track 1") -> dict[str, Any]:
+    artist = {
+        "external_urls": {"spotify": "http://spotify.com"},
+        "href": "http://spotify.com",
+        "id": "artist1",
+        "name": "Artist 1",
+        "type": "artist",
+        "uri": "spotify:artist:1",
+    }
     return {
+        "added_at": "2023-01-01T00:00:00Z",
         "track": {
-            "uri": uri,
-            "name": name,
-            "type": "track",
-            "id": uri.rsplit(":", maxsplit=1)[-1],
-            "duration_ms": 1000,
-            "explicit": False,
-            "popularity": 50,
-            "disc_number": 1,
-            "track_number": 1,
-            "external_urls": {"spotify": "http://spotify.com"},
-            "external_ids": {"isrc": "isrc"},
-            "available_markets": ["US"],
             "album": {
-                "uri": "spotify:album:1",
-                "name": "Album 1",
-                "type": "album",
-                "id": "album1",
                 "album_type": "album",
                 "total_tracks": 10,
                 "available_markets": ["US"],
                 "external_urls": {"spotify": "http://spotify.com"},
                 "href": "http://spotify.com",
-                "images": [],
+                "id": "album1",
+                "images": [],  # @TODO: add an image object here
+                "name": "Album 1",
                 "release_date": "2023",
                 "release_date_precision": "year",
-                "artists": [
-                    {
-                        "uri": "spotify:artist:1",
-                        "name": "Artist 1",
-                        "type": "artist",
-                        "id": "artist1",
-                        "external_urls": {"spotify": "http://spotify.com"},
-                        "href": "http://spotify.com",
-                    }
-                ],
+                "type": "album",
+                "uri": "spotify:album:1",
+                "artists": [artist],
             },
-            "artists": [
-                {
-                    "uri": "spotify:artist:1",
-                    "name": "Artist 1",
-                    "type": "artist",
-                    "id": "artist1",
-                    "external_urls": {"spotify": "http://spotify.com"},
-                    "href": "http://spotify.com",
-                }
-            ],
+            "artists": [artist],
+            "available_markets": ["US"],
+            "disc_number": 1,
+            "duration_ms": 1000,
+            "explicit": False,
+            "external_ids": {"isrc": "isrc"},
+            "external_urls": {"spotify": "http://spotify.com"},
             "href": "http://spotify.com",
+            "id": uri.rsplit(":", maxsplit=1)[-1],
+            "name": name,
+            "popularity": 50,
+            "preview_url": None,
+            "track_number": 1,
+            "type": "track",
+            "uri": uri,
+            "is_local": False,
         },
-        "added_at": "2023-01-01T00:00:00Z",
     }
 
 
@@ -138,28 +139,88 @@ async def test_get_all_liked_tracks(client_instance: Client) -> None:
 async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
     """Test deleting all tracks from playlist in batches."""
     # Mock responses for fetch_tracks_batch
+
     # Batch 1: Full batch
-    track1 = get_valid_track_data("spotify:track:1", "Track 1")["track"]
-    track2 = get_valid_track_data("spotify:track:2", "Track 2")["track"]
+    track1 = get_valid_track_data("spotify:track:1", "Track 1")
+    track2 = get_valid_track_data("spotify:track:2", "Track 2")
 
     batch_1_tracks = [track1, track2]
-    # We need to return a LikedTracksResponse object
+    # We need to return a Playlist object
 
-    response_batch_1 = LikedTracksResponse(
+    items_batch_1 = PlaylistItems(
         href="http://href",
         limit=100,
         offset=0,
         total=2,
-        items=[LikedTrackItem(track=t, added_at="2023-01-01T00:00:00Z") for t in batch_1_tracks],
+        items=[
+            PlaylistItem(
+                track=t["track"],
+                item=t["track"],
+                added_at=t["added_at"],
+                added_by=Owner(
+                    href="",
+                    uri="",
+                    type="user",
+                    external_urls=ExternalUrls(spotify=""),
+                    **{"id": "1"},
+                ),
+                is_local=False,
+                primary_color="",
+                video_thumbnail=VideoThumbnail(url=None),
+            )
+            for t in batch_1_tracks
+        ],
+    )
+
+    owner = Owner(
+        external_urls=ExternalUrls(spotify="http"),
+        href="http",
+        type="user",
+        uri="uri",
+        **{"id": "user"},
+    )
+
+    response_batch_1 = PlaylistResponse(
+        collaborative=False,
+        description="test",
+        external_urls=ExternalUrls(spotify="http"),
+        href="http",
+        **{"id": "123"},
+        images=[],
+        name="test",
+        owner=owner,
+        public=True,
+        snapshot_id="snap",
+        items=items_batch_1,
+        tracks=items_batch_1,
+        followers=Followers(total=0),
+        type="playlist",
+        uri="spotify:playlist:123",
     )
 
     # Batch 2: Empty
-    response_batch_2 = LikedTracksResponse(
-        href="http://href", limit=100, offset=0, total=0, items=[]
+    items_batch_2 = PlaylistItems(href="http://href", limit=100, offset=0, total=0, items=[])
+
+    response_batch_2 = PlaylistResponse(
+        collaborative=False,
+        description="test",
+        external_urls=ExternalUrls(spotify="http"),
+        href="http",
+        **{"id": "123"},
+        images=[],
+        name="test",
+        owner=owner,
+        public=True,
+        snapshot_id="snap",
+        items=items_batch_2,
+        tracks=items_batch_2,
+        followers=Followers(total=0),
+        type="playlist",
+        uri="spotify:playlist:123",
     )
 
-    # Patch fetch_tracks_batch on the instance
-    with patch.object(client_instance, "fetch_tracks_batch", new_callable=AsyncMock) as mock_fetch:
+    # Patch fetch_playlist on the instance
+    with patch.object(client_instance, "fetch_playlist", new_callable=AsyncMock) as mock_fetch:
         mock_fetch.side_effect = [response_batch_1, response_batch_2]
 
         # Patch delete_with_sem
@@ -304,9 +365,11 @@ async def test_get_all_liked_tracks_multiple_batches(client_instance: Client) ->
         get_valid_track_data(f"spotify:track:{i}", f"Track {i}") for i in range(100, 150)
     ]
 
-    # Mock fetch_tracks_batch instead of pure httpx.get to safely bypass retries handling complexity over batches
-    with patch.object(client_instance, "fetch_tracks_batch", new_callable=AsyncMock) as mock_fetch:
-        # fetch_tracks_batch is called first for total, then gather for remaining
+    # Mock fetch_liked_tracks_batch instead of pure httpx.get to safely bypass retries handling complexity over batches
+    with patch.object(
+        client_instance, "fetch_liked_tracks_batch", new_callable=AsyncMock
+    ) as mock_fetch:
+        # fetch_liked_tracks_batch is called first for total, then gather for remaining
         mock_fetch.side_effect = [
             LikedTracksResponse.model_validate(first_batch_data),
             LikedTracksResponse.model_validate(second_batch_data),
@@ -326,15 +389,56 @@ async def test_get_all_liked_tracks_multiple_batches(client_instance: Client) ->
 @pytest.mark.asyncio
 async def test_delete_all_playlist_tracks_exception(client_instance: Client) -> None:
     """Test exception during delete batch bubbles out securely."""
-    track1 = get_valid_track_data("spotify:track:1", "Track 1")["track"]
-    response_batch = LikedTracksResponse(
+
+    track1 = get_valid_track_data("spotify:track:1", "Track 1")
+    items_batch = PlaylistItems(
         href="http",
         limit=100,
         offset=0,
         total=10,
-        items=[LikedTrackItem(track=track1, added_at="2023-01-01T00:00:00Z")],
+        items=[
+            PlaylistItem(
+                track=track1["track"],
+                item=track1["track"],
+                added_at=track1["added_at"],
+                added_by=Owner(
+                    href="",
+                    uri="",
+                    type="user",
+                    external_urls=ExternalUrls(spotify=""),
+                    **{"id": "1"},
+                ),
+                is_local=False,
+                primary_color="",
+                video_thumbnail=VideoThumbnail(url=None),
+            )
+        ],
     )
-    with patch.object(client_instance, "fetch_tracks_batch", new_callable=AsyncMock) as mock_fetch:
+    owner = Owner(
+        external_urls=ExternalUrls(spotify="http"),
+        href="http",
+        type="user",
+        uri="uri",
+        **{"id": "user"},
+    )
+    response_batch = PlaylistResponse(
+        collaborative=False,
+        description="test",
+        external_urls=ExternalUrls(spotify="http"),
+        href="http",
+        **{"id": "123"},
+        images=[],
+        name="test",
+        owner=owner,
+        public=True,
+        snapshot_id="snap",
+        items=items_batch,
+        tracks=items_batch,
+        followers=Followers(total=0),
+        type="playlist",
+        uri="spotify:playlist:123",
+    )
+    with patch.object(client_instance, "fetch_playlist", new_callable=AsyncMock) as mock_fetch:
         mock_fetch.return_value = response_batch
 
         with patch.object(
@@ -376,8 +480,8 @@ async def test_update_queue_no_device(client_instance: Client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_tracks_batch_exception(client_instance: Client) -> None:
-    """Test fetch_tracks_batch bubbling up validation errors."""
+async def test_fetch_liked_tracks_batch_exception(client_instance: Client) -> None:
+    """Test fetch_liked_tracks_batch bubbling up validation errors."""
     mock_client = AsyncMock()
     with patch.object(client_instance, "_make_get_request", new_callable=AsyncMock) as mock_req:
         r = MagicMock()
@@ -387,6 +491,6 @@ async def test_fetch_tracks_batch_exception(client_instance: Client) -> None:
         mock_req.return_value = r
 
         with pytest.raises(ValidationError):
-            await client_instance.fetch_tracks_batch(
+            await client_instance.fetch_liked_tracks_batch(
                 mock_client, "http://uri?offset=0&limit=5", "test"
             )

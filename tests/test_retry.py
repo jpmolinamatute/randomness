@@ -7,19 +7,17 @@ from spotify.client import Client, DeletePlaylistPayload
 
 
 @pytest.mark.asyncio
-async def test_fetch_tracks_batch_retries(client_instance: Client) -> None:
-    """Test that fetch_tracks_batch retries on 429."""
+async def test_fetch_liked_tracks_batch_retries(client_instance: Client) -> None:
+    """Test that fetch_liked_tracks_batch retries on 429."""
     expected_calls = 2
     batch_data = {
-        "tracks": {
-            "items": [],
-            "total": 0,
-            "next": None,
-            "href": "http://spotify.com",
-            "limit": 20,
-            "offset": 0,
-            "previous": None,
-        }
+        "items": [],
+        "total": 0,
+        "next": None,
+        "href": "http://spotify.com",
+        "limit": 20,
+        "offset": 0,
+        "previous": None,
     }
 
     mock_client = AsyncMock(spec=httpx.AsyncClient)
@@ -38,7 +36,7 @@ async def test_fetch_tracks_batch_retries(client_instance: Client) -> None:
 
     # Patch asyncio.sleep to avoid waiting during test
     with patch("asyncio.sleep", new_callable=AsyncMock):
-        await client_instance.fetch_tracks_batch(
+        await client_instance.fetch_liked_tracks_batch(
             mock_client, "http://example.com/test?offset=0&limit=50", "test"
         )
 

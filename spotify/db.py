@@ -9,7 +9,7 @@ from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import AutoReconnect
 
-from spotify.schema import Track
+from spotify.schema import ItemV2
 
 type MongoFilter = Mapping[str, object]
 type MongoPipeline = Sequence[Mapping[str, object]]
@@ -70,7 +70,7 @@ class DB:
         self.logger.debug("Counting documents in 'tracks' with filters=%s", mongo_filters)
         return self.get_tracks_coll().count_documents(mongo_filters)
 
-    def sync_tracks(self, tracks: list[Track]) -> None:
+    def sync_tracks(self, tracks: list[ItemV2]) -> None:
         self.logger.debug("Syncing tracks to MongoDB: sum=%d", len(tracks))
 
         existing_uris_cursor = self.get_tracks_coll().find({}, {"uri": 1})
