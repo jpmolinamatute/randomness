@@ -8,12 +8,10 @@ from pydantic import ValidationError
 from spotify.client import Client
 from spotify.schema import (
     ExternalUrls,
-    Followers,
     LikedTracksResponse,
     Owner,
     PlaylistItem,
     PlaylistItems,
-    PlaylistResponse,
     VideoThumbnail,
 )
 
@@ -172,56 +170,14 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
         ],
     )
 
-    owner = Owner(
-        external_urls=ExternalUrls(spotify="http"),
-        href="http",
-        type="user",
-        uri="uri",
-        **{"id": "user"},
-    )
-
-    response_batch_1 = PlaylistResponse(
-        collaborative=False,
-        description="test",
-        external_urls=ExternalUrls(spotify="http"),
-        href="http",
-        **{"id": "123"},
-        images=[],
-        name="test",
-        owner=owner,
-        public=True,
-        snapshot_id="snap",
-        items=items_batch_1,
-        tracks=items_batch_1,
-        followers=Followers(total=0),
-        type="playlist",
-        uri="spotify:playlist:123",
-    )
-
     # Batch 2: Empty
     items_batch_2 = PlaylistItems(href="http://href", limit=100, offset=0, total=0, items=[])
 
-    response_batch_2 = PlaylistResponse(
-        collaborative=False,
-        description="test",
-        external_urls=ExternalUrls(spotify="http"),
-        href="http",
-        **{"id": "123"},
-        images=[],
-        name="test",
-        owner=owner,
-        public=True,
-        snapshot_id="snap",
-        items=items_batch_2,
-        tracks=items_batch_2,
-        followers=Followers(total=0),
-        type="playlist",
-        uri="spotify:playlist:123",
-    )
-
-    # Patch fetch_playlist on the instance
-    with patch.object(client_instance, "fetch_playlist", new_callable=AsyncMock) as mock_fetch:
-        mock_fetch.side_effect = [response_batch_1, response_batch_2]
+    # Patch fetch_playlist_items on the instance
+    with patch.object(
+        client_instance, "fetch_playlist_items", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.side_effect = [items_batch_1, items_batch_2]
 
         # Patch delete_with_sem
         with patch.object(
@@ -365,11 +321,9 @@ async def test_get_all_liked_tracks_multiple_batches(client_instance: Client) ->
         get_valid_track_data(f"spotify:track:{i}", f"Track {i}") for i in range(100, 150)
     ]
 
-    # Mock fetch_liked_tracks_batch instead of pure httpx.get to safely bypass retries handling complexity over batches
-    with patch.object(
-        client_instance, "fetch_liked_tracks_batch", new_callable=AsyncMock
-    ) as mock_fetch:
-        # fetch_liked_tracks_batch is called first for total, then gather for remaining
+    # Mock fetch_liked_items instead of pure httpx.get to safely bypass retries handling complexity over batches
+    with patch.object(client_instance, "fetch_liked_items", new_callable=AsyncMock) as mock_fetch:
+        # fetch_liked_items is called first for total, then gather for remaining
         mock_fetch.side_effect = [
             LikedTracksResponse.model_validate(first_batch_data),
             LikedTracksResponse.model_validate(second_batch_data),
@@ -414,32 +368,11 @@ async def test_delete_all_playlist_tracks_exception(client_instance: Client) -> 
             )
         ],
     )
-    owner = Owner(
-        external_urls=ExternalUrls(spotify="http"),
-        href="http",
-        type="user",
-        uri="uri",
-        **{"id": "user"},
-    )
-    response_batch = PlaylistResponse(
-        collaborative=False,
-        description="test",
-        external_urls=ExternalUrls(spotify="http"),
-        href="http",
-        **{"id": "123"},
-        images=[],
-        name="test",
-        owner=owner,
-        public=True,
-        snapshot_id="snap",
-        items=items_batch,
-        tracks=items_batch,
-        followers=Followers(total=0),
-        type="playlist",
-        uri="spotify:playlist:123",
-    )
-    with patch.object(client_instance, "fetch_playlist", new_callable=AsyncMock) as mock_fetch:
-        mock_fetch.return_value = response_batch
+
+    with patch.object(
+        client_instance, "fetch_playlist_items", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.return_value = items_batch
 
         with patch.object(
             client_instance, "delete_with_sem", new_callable=AsyncMock
@@ -481,7 +414,7 @@ async def test_update_queue_no_device(client_instance: Client) -> None:
 
 @pytest.mark.asyncio
 async def test_fetch_liked_tracks_batch_exception(client_instance: Client) -> None:
-    """Test fetch_liked_tracks_batch bubbling up validation errors."""
+    """Test fetch_liked_items bubbling up validation errors."""
     mock_client = AsyncMock()
     with patch.object(client_instance, "_make_get_request", new_callable=AsyncMock) as mock_req:
         r = MagicMock()
@@ -491,6 +424,4 @@ async def test_fetch_liked_tracks_batch_exception(client_instance: Client) -> No
         mock_req.return_value = r
 
         with pytest.raises(ValidationError):
-            await client_instance.fetch_liked_tracks_batch(
-                mock_client, "http://uri?offset=0&limit=5", "test"
-            )
+            await client_instance.fetch_liked_items(mock_client, "http://uri?offset=0&limit=5")
