@@ -202,7 +202,9 @@ class Item(MongoIdMixin):
     popularity: int = Field(..., description="Popularity (0-100) based on Spotify play metrics")
     preview_url: str | None = Field(None, description="30-second MP3 preview URL if available")
     track_number: int = Field(..., description="Position of the track on its disc")
-    type: ItemType = Field(..., description="Object type, should be 'track', 'episode', 'show', or 'audiobook'")
+    type: ItemType = Field(
+        ..., description="Object type, should be 'track', 'episode', 'show', or 'audiobook'"
+    )
     uri: str = Field(..., description="Spotify URI for the track")
     is_local: bool = Field(
         default=False, description="True if the track is a local file added by the user"
