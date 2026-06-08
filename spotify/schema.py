@@ -1,9 +1,37 @@
+from datetime import UTC, date, datetime
 from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 type HeadersType = dict[str, str]
 type ReasonType = Literal["market", "product", "explicit"]
+type ArtistType = Literal["artist"]
+type AlbumType = Literal["album"]
+type ItemType = Literal["track", "episode", "show", "audiobook"]
+type OwnerType = Literal["user"]
+type PlaylistType = Literal["playlist"]
+
+
+def parse_release_date(release_date_str: str, precision: str) -> datetime:
+    """Parses Spotify release_date string into a UTC datetime object based on precision."""
+    try:
+        if precision == "day":
+            return datetime.strptime(release_date_str, "%Y-%m-%d").replace(tzinfo=UTC)
+        elif precision == "month":
+            return datetime.strptime(release_date_str, "%Y-%m").replace(tzinfo=UTC)
+        elif precision == "year":
+            return datetime.strptime(release_date_str, "%Y").replace(tzinfo=UTC)
+        else:
+            raise ValueError(f"Unknown precision: {precision}")
+    except Exception as e:
+        for fmt in ("%Y-%m-%d", "%Y-%m", "%Y"):
+            try:
+                return datetime.strptime(release_date_str, fmt).replace(tzinfo=UTC)
+            except ValueError:
+                continue
+        raise ValueError(
+            f"Failed to parse release date '{release_date_str}' with precision '{precision}'"
+        ) from e
 
 
 class DeletePlaylistItem(TypedDict):
@@ -73,7 +101,7 @@ class Artist(MongoIdMixin):
     )
     href: str = Field(..., description="Spotify Web API endpoint for this artist")
     name: str = Field(..., description="Artist name")
-    type: str = Field(..., description="Object type, should be 'artist'")
+    type: ArtistType = Field(..., description="Object type, should be 'artist'")
     uri: str = Field(..., description="Spotify URI for the artist")
 
     model_config = ConfigDict(title="Artist", extra="forbid", populate_by_name=True)
@@ -92,14 +120,14 @@ class Album(MongoIdMixin):
     id: str = Field(..., alias="_id", description="Spotify ID of the album")
     images: list[Image] = Field(..., description="Cover art images in various sizes")
     name: str = Field(..., description="Album name")
-    release_date: str = Field(
+    release_date: datetime | str = Field(
         ...,
         description="Date the album was first released (may be year, year-month, or full date)",
     )
     release_date_precision: str = Field(
         ..., description="Precision of release_date: year, month, or day"
     )
-    type: str = Field(..., description="Object type, should be 'album'")
+    type: AlbumType = Field(..., description="Object type, should be 'album'")
     uri: str = Field(..., description="Spotify URI for the album")
     artists: list[Artist] = Field(..., description="List of artists for the album")
     is_playable: bool | None = Field(
@@ -107,6 +135,30 @@ class Album(MongoIdMixin):
     )
 
     model_config = ConfigDict(title="Album", extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_release_date(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            release_date = data.get("release_date")
+            precision = data.get("release_date_precision")
+
+            # If already a datetime or date (e.g. loaded from DB), allow it
+            if isinstance(release_date, (datetime, date)):
+                return data
+
+            # If string, require string precision and parse it
+            if isinstance(release_date, str):
+                if not isinstance(precision, str):
+                    raise ValueError(
+                        f"release_date is a string but release_date_precision is not a string (value: {precision})"
+                    )
+                data["release_date"] = parse_release_date(release_date, precision)
+            else:
+                raise ValueError(
+                    f"release_date must be a datetime, date, or string (value: {release_date})"
+                )
+        return data
 
 
 class ExternalIds(BaseModel):
@@ -150,7 +202,7 @@ class Item(MongoIdMixin):
     popularity: int = Field(..., description="Popularity (0-100) based on Spotify play metrics")
     preview_url: str | None = Field(None, description="30-second MP3 preview URL if available")
     track_number: int = Field(..., description="Position of the track on its disc")
-    type: str = Field(..., description="Object type, should be 'track'")
+    type: ItemType = Field(..., description="Object type, should be 'track', 'episode', 'show', or 'audiobook'")
     uri: str = Field(..., description="Spotify URI for the track")
     is_local: bool = Field(
         default=False, description="True if the track is a local file added by the user"
@@ -181,7 +233,7 @@ class Owner(MongoIdMixin):
     )
     href: str = Field(..., description="Spotify Web API endpoint for this user")
     id: str = Field(..., alias="_id", description="User's Spotify ID")
-    type: Literal["user"] = Field(..., description="Object type, always 'user'")
+    type: OwnerType = Field(..., description="Object type, always 'user'")
     uri: str = Field(..., description="Spotify URI for the user")
     display_name: str | None = Field(None, description="User's display name")
 
@@ -249,7 +301,7 @@ class PlaylistResponse(MongoIdMixin):
     public: bool = Field(..., description="The playlist's public/private status.")
     snapshot_id: str = Field(..., description="The version identifier for the current playlist.")
     items: PlaylistItems = Field(..., description="The tracks of the playlist.")
-    type: str = Field(..., description="The object type: 'playlist'")
+    type: PlaylistType = Field(..., description="The object type: 'playlist'")
     uri: str = Field(..., description="The Spotify URI for the playlist.")
     tracks: PlaylistItems = Field(..., description="The tracks of the playlist.", deprecated=True)
     followers: Followers = Field(..., description="The number of followers of the playlist.")
