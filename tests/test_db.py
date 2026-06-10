@@ -6,7 +6,7 @@ import pytest
 from pymongo.errors import AutoReconnect
 
 from spotify.db import DB
-from spotify.schema import ItemV2
+from spotify.schema import ItemV2, Track
 
 EXPECTED_RANDOM_COUNT = 2
 TEST_PLAYLIST_SIZE = 5
@@ -85,8 +85,8 @@ def test_sync_tracks(db_instance: DB) -> None:
     mock_db.__getitem__.return_value = mock_coll
 
     mock_coll.find.return_value = [{"uri": "old_uri"}]
-    tracks = [
-        ItemV2.model_construct(
+    tracks: list[ItemV2] = [
+        Track.model_construct(
             uri="new_uri",
             type="track",
             href="https://api.spotify.com/v1/tracks/new_uri",
@@ -216,8 +216,8 @@ def test_sync_tracks_auto_reconnect_success(db_instance: DB) -> None:
         MagicMock(),  # success
     ]
 
-    tracks = [
-        ItemV2.model_construct(
+    tracks: list[ItemV2] = [
+        Track.model_construct(
             uri="new_uri",
             type="track",
             href="https://api.spotify.com/v1/tracks/new_uri",
@@ -244,8 +244,8 @@ def test_sync_tracks_auto_reconnect_failure(db_instance: DB) -> None:
     # Fail continuously
     mock_coll.bulk_write.side_effect = AutoReconnect("timeout")
 
-    tracks = [
-        ItemV2.model_construct(
+    tracks: list[ItemV2] = [
+        Track.model_construct(
             uri="new_uri",
             type="track",
             href="https://api.spotify.com/v1/tracks/new_uri",
