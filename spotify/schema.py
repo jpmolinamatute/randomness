@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from typing import Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -10,6 +10,36 @@ type AlbumType = Literal["album"]
 type ItemType = Literal["track", "episode", "show", "audiobook"]
 type OwnerType = Literal["user"]
 type PlaylistType = Literal["playlist"]
+type CopyrightType = Literal["C", "P"]
+
+
+class Copyright(BaseModel):
+    text: str = Field(..., description="The copyright text for this content.")
+    type: CopyrightType = Field(
+        ...,
+        description="The type of copyright: C = the copyright, P = the sound recording (performance) copyright.",
+    )
+    model_config = ConfigDict(title="Copyright", extra="forbid")
+
+
+class ResumePoint(BaseModel):
+    fully_played: bool = Field(
+        ..., description="Whether the episode has been fully played by the user."
+    )
+    resume_position_ms: int = Field(
+        ..., description="The user's most recent position in the episode in milliseconds."
+    )
+    model_config = ConfigDict(title="ResumePoint", extra="forbid")
+
+
+class Author(BaseModel):
+    name: str = Field(..., description="The name of the author.")
+    model_config = ConfigDict(title="Author", extra="forbid")
+
+
+class Narrator(BaseModel):
+    name: str = Field(..., description="The name of the narrator.")
+    model_config = ConfigDict(title="Narrator", extra="forbid")
 
 
 def parse_release_date(release_date_str: str, precision: str) -> datetime:
@@ -23,7 +53,7 @@ def parse_release_date(release_date_str: str, precision: str) -> datetime:
             return datetime.strptime(release_date_str, "%Y").replace(tzinfo=UTC)
         else:
             raise ValueError(f"Unknown precision: {precision}")
-    except Exception as e:
+    except ValueError as e:
         for fmt in ("%Y-%m-%d", "%Y-%m", "%Y"):
             try:
                 return datetime.strptime(release_date_str, fmt).replace(tzinfo=UTC)
@@ -120,7 +150,7 @@ class Album(MongoIdMixin):
     id: str = Field(..., alias="_id", description="Spotify ID of the album")
     images: list[Image] = Field(..., description="Cover art images in various sizes")
     name: str = Field(..., description="Album name")
-    release_date: datetime | str = Field(
+    release_date: datetime = Field(
         ...,
         description="Date the album was first released (may be year, year-month, or full date)",
     )
@@ -140,11 +170,11 @@ class Album(MongoIdMixin):
     @classmethod
     def _parse_release_date(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            release_date = data.get("release_date")
-            precision = data.get("release_date_precision")
+            release_date = data.get("release_date", "")
+            precision = data.get("release_date_precision", "")
 
-            # If already a datetime or date (e.g. loaded from DB), allow it
-            if isinstance(release_date, (datetime, date)):
+            # If already a datetime (e.g. loaded from DB), allow it
+            if isinstance(release_date, datetime):
                 return data
 
             # If string, require string precision and parse it
@@ -214,10 +244,135 @@ class Item(MongoIdMixin):
     )
 
 
-class ItemV2(Item):
-    episode: bool | None = Field(default=None, description="Whether the track is an episode")
-    track: bool | None = Field(default=None, description="Whether the track is a track")
-    model_config = ConfigDict(title="ItemV2", extra="forbid", populate_by_name=True)
+class SpotifyItem(MongoIdMixin):
+    id: str = Field(..., alias="_id", description="Spotify ID of the item")
+    name: str = Field(..., description="Name of the item")
+    uri: str = Field(..., description="Spotify URI for the item")
+    href: str = Field(..., description="Spotify Web API endpoint for this item")
+    external_urls: ExternalUrls = Field(..., description="External URLs for this item")
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class Track(Item):
+    type: Literal["track"] = Field("track", description="Object type, should be 'track'")
+
+    # Playlist-specific flags
+    episode: Literal[False] = Field(False, description="Whether the track is an episode")
+    track: Literal[True] = Field(True, description="Whether the track is a track")
+
+    model_config = ConfigDict(title="Track", extra="forbid", populate_by_name=True)
+
+
+class SimplifiedShow(SpotifyItem):
+    type: Literal["show"] = Field("show", description="Object type, always 'show'")
+    available_markets: list[str] = Field(
+        ..., description="Country codes where the show can be played"
+    )
+    copyrights: list[Copyright] = Field(..., description="The copyrights for the show")
+    description: str = Field(..., description="A description of the show")
+    html_description: str = Field(..., description="A description of the show in HTML format")
+    explicit: bool = Field(..., description="Whether the show has explicit content")
+    images: list[Image] = Field(..., description="The cover art for the show in various sizes")
+    is_externally_hosted: bool | None = Field(
+        None, description="True if the show is hosted outside of Spotify"
+    )
+    languages: list[str] = Field(..., description="The languages used in the show")
+    media_type: str = Field(..., description="The media type of the show")
+    publisher: str = Field(..., description="The publisher of the show")
+    total_episodes: int | None = Field(None, description="The total number of episodes in the show")
+
+    model_config = ConfigDict(title="SimplifiedShow", extra="forbid", populate_by_name=True)
+
+
+class Episode(SpotifyItem):
+    type: Literal["episode"] = Field("episode", description="Object type, always 'episode'")
+    audio_preview_url: str | None = Field(
+        None, description="A URL to a 30-second preview of the episode in MP3 format"
+    )
+    description: str = Field(..., description="A description of the episode")
+    html_description: str = Field(..., description="A description of the episode in HTML format")
+    duration_ms: int = Field(..., description="The episode length in milliseconds")
+    explicit: bool = Field(..., description="True if the episode has explicit content")
+    images: list[Image] = Field(..., description="The cover art for the episode in various sizes")
+    is_externally_hosted: bool = Field(
+        ..., description="True if the episode is hosted outside of Spotify"
+    )
+    is_playable: bool = Field(
+        ..., description="True if the episode is playable in the user's market"
+    )
+    languages: list[str] = Field(..., description="A list of languages used in the episode")
+    release_date: datetime | str = Field(..., description="The date the episode was released")
+    release_date_precision: str = Field(
+        ..., description="The precision with which release_date is known"
+    )
+    resume_point: ResumePoint | None = Field(
+        None, description="The user's most recent position in the episode"
+    )
+    show: SimplifiedShow = Field(..., description="The show on which the episode belongs")
+    restrictions: Restrictions | None = Field(
+        None, description="Why the episode is restricted, if applicable"
+    )
+
+    # Playlist-specific flags
+    episode: Literal[True] = Field(True, description="Whether the track is an episode")
+    track: Literal[False] = Field(False, description="Whether the track is a track")
+
+    model_config = ConfigDict(title="Episode", extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_release_date(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            release_date = data.get("release_date")
+            precision = data.get("release_date_precision")
+
+            # If already a datetime or date (e.g. loaded from DB), allow it
+            if isinstance(release_date, (datetime, date)):
+                return data
+
+            # If string, require string precision and parse it
+            if isinstance(release_date, str):
+                if not isinstance(precision, str):
+                    raise ValueError(
+                        f"release_date is a string but release_date_precision is not a string (value: {precision})"
+                    )
+                data["release_date"] = parse_release_date(release_date, precision)
+            else:
+                raise ValueError(
+                    f"release_date must be a datetime, date, or string (value: {release_date})"
+                )
+        return data
+
+
+class Show(SimplifiedShow):
+    episodes: Any = Field(default=None, description="The episodes of the show")
+    model_config = ConfigDict(title="Show", extra="forbid", populate_by_name=True)
+
+
+class Audiobook(SpotifyItem):
+    type: Literal["audiobook"] = Field("audiobook", description="Object type, always 'audiobook'")
+    authors: list[Author] = Field(..., description="The authors of the audiobook")
+    available_markets: list[str] = Field(
+        ..., description="Country codes where the audiobook is available"
+    )
+    copyrights: list[Copyright] = Field(..., description="The copyrights for the audiobook")
+    description: str = Field(..., description="A description of the audiobook")
+    html_description: str = Field(..., description="A description of the audiobook in HTML format")
+    edition: str | None = Field(None, description="The edition of the audiobook")
+    explicit: bool = Field(..., description="True if the audiobook has explicit content")
+    images: list[Image] = Field(..., description="The cover art for the audiobook in various sizes")
+    languages: list[str] = Field(..., description="The languages used in the audiobook")
+    media_type: str = Field(..., description="The media type of the audiobook")
+    narrators: list[Narrator] = Field(..., description="The narrators of the audiobook")
+    publisher: str = Field(..., description="The publisher of the audiobook")
+    total_chapters: int | None = Field(
+        None, description="The total number of chapters in the audiobook"
+    )
+
+    model_config = ConfigDict(title="Audiobook", extra="forbid", populate_by_name=True)
+
+
+ItemV2 = Annotated[Track | Episode | Audiobook, Field(discriminator="type")]
 
 
 class Followers(BaseModel):
