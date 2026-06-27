@@ -25,11 +25,9 @@ EXPECTED_CHUNKED_POST_CALLS = 3
 
 
 @pytest.mark.asyncio
-async def test_get_available_device_id(client_instance: Client) -> None:
-    """Test getting available device ID."""
-    mock_response_data = {
-        "devices": [{"id": "device_1", "is_active": True}, {"id": "device_2", "is_active": False}]
-    }
+async def test_get_available_all_devices(client_instance: Client) -> None:
+    """Test getting all available device IDs."""
+    mock_response_data = {"devices": [{"id": "device_1"}, {"id": "device_2"}, {"id": ""}]}
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_response = MagicMock()
@@ -37,16 +35,16 @@ async def test_get_available_device_id(client_instance: Client) -> None:
         mock_response.json.return_value = mock_response_data
         mock_get.return_value = mock_response
 
-        device_id = await client_instance.get_available_device_id()
-        assert device_id == "device_1"
+        devices = await client_instance.get_available_all_devices()
+        assert devices == ["device_1", "device_2"]
 
         # Test no devices
         mock_response_empty = MagicMock()
         mock_response_empty.status_code = 200
         mock_response_empty.json.return_value = {"devices": []}
         mock_get.return_value = mock_response_empty
-        device_id = await client_instance.get_available_device_id()
-        assert device_id is None
+        devices = await client_instance.get_available_all_devices()
+        assert devices == []
 
 
 def get_valid_track_data(uri: str = "spotify:track:1", name: str = "Track 1") -> dict[str, Any]:
@@ -220,27 +218,32 @@ async def test_populate_playlist_with_uris(client_instance: Client) -> None:
 @pytest.mark.asyncio
 async def test_update_queue(client_instance: Client) -> None:
     """Test updating the queue."""
-    # Mock get_available_device_id
-    # Use monkeypatch or patch.object instead of assignment to satisfy MyPy
     with patch.object(
-        client_instance, "get_available_device_id", new_callable=AsyncMock
-    ) as mock_get_device:
-        mock_get_device.return_value = "device_123"
+        client_instance, "get_available_all_devices", new_callable=AsyncMock
+    ) as mock_get_devices:
+        mock_get_devices.return_value = ["device_123"]
 
-        with patch("httpx.AsyncClient.put", new_callable=AsyncMock) as mock_put:
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
             mock_response = MagicMock()
             mock_response.status_code = 204
-            mock_put.return_value = mock_response
+            mock_post.return_value = mock_response
 
-            await client_instance.update_queue()
+            test_uris = ["spotify:track:1", "spotify:track:2"]
+            await client_instance.update_queue(test_uris)
 
-            mock_put.assert_called_once()
-            _, kwargs = mock_put.call_args
-            assert "device_id=device_123" in mock_put.call_args[0][0]
-            assert (
-                kwargs["json"]["context_uri"]
-                == f"spotify:playlist:{client_instance.spotify_playlist_id}"
-            )
+            expected_calls = len(test_uris)
+            assert mock_post.call_count == expected_calls
+            call_args_list = mock_post.call_args_list
+            # First call assertions
+            args, kwargs = call_args_list[0]
+            assert "device_id" in kwargs["params"]
+            assert kwargs["params"]["device_id"] == "device_123"
+            assert kwargs["params"]["uri"] == "spotify:track:1"
+            # Second call assertions
+            args, kwargs = call_args_list[1]
+            assert "device_id" in kwargs["params"]
+            assert kwargs["params"]["device_id"] == "device_123"
+            assert kwargs["params"]["uri"] == "spotify:track:2"
 
 
 @pytest.mark.asyncio
@@ -274,28 +277,12 @@ def test_describe_paging_window_invalid(client_instance: Client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_available_device_id_exception(client_instance: Client) -> None:
-    """Test get_available_device_id raises exception on network error."""
+async def test_get_available_all_devices_exception(client_instance: Client) -> None:
+    """Test get_available_all_devices raises exception on network error."""
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.side_effect = httpx.RequestError("Network error")
         with pytest.raises(httpx.RequestError):
-            await client_instance.get_available_device_id()
-
-
-@pytest.mark.asyncio
-async def test_get_available_device_id_none_active(client_instance: Client) -> None:
-    """Test get_available_device_id returns None if no devices are active."""
-    mock_response_data = {
-        "devices": [{"id": "device_1", "is_active": False}, {"id": "device_2", "is_active": False}]
-    }
-    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-        r = MagicMock()
-        r.status_code = 200
-        r.json.return_value = mock_response_data
-        mock_get.return_value = r
-
-        device_id = await client_instance.get_available_device_id()
-        assert device_id is None
+            await client_instance.get_available_all_devices()
 
 
 @pytest.mark.asyncio
@@ -401,15 +388,15 @@ async def test_populate_playlist_with_uris_chunks(client_instance: Client) -> No
 
 @pytest.mark.asyncio
 async def test_update_queue_no_device(client_instance: Client) -> None:
-    """Test update_queue aborts correctly if device ID proves none."""
+    """Test update_queue aborts correctly if no devices are available."""
     with patch.object(
-        client_instance, "get_available_device_id", new_callable=AsyncMock
+        client_instance, "get_available_all_devices", new_callable=AsyncMock
     ) as mock_get_dev:
-        mock_get_dev.return_value = None
+        mock_get_dev.return_value = []
 
-        with patch("httpx.AsyncClient.put", new_callable=AsyncMock) as mock_put:
-            await client_instance.update_queue()
-            mock_put.assert_not_called()
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            await client_instance.update_queue(["spotify:track:1"])
+            mock_post.assert_not_called()
 
 
 @pytest.mark.asyncio

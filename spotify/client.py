@@ -70,9 +70,9 @@ class Client:
         self.logger.debug("Computed human readable batch window: %s", human)
         return human
 
-    async def get_available_device_id(self) -> str | None:
-        self.logger.debug("Getting available device ID")
-        device_id: str | None = None
+    async def get_available_all_devices(self) -> list[str]:
+        self.logger.debug("Getting all available device IDs")
+        devices: list[str] = []
         headers = await self._get_headers()
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -81,12 +81,12 @@ class Client:
         response.raise_for_status()
         response_data = response.json()
 
-        devices = response_data.get("devices", [])
-        for d in devices:
-            if d.get("is_active"):
-                device_id = d.get("id")
-                break
-        return device_id
+        raw_devices = response_data.get("devices", [])
+        for d in raw_devices:
+            d_id = d.get("id")
+            if d_id:
+                devices.append(d_id)
+        return devices
 
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -109,6 +109,25 @@ class Client:
         headers["Content-Type"] = "application/json"
         return await client.request(
             "DELETE", url, headers=headers, json=json_data, timeout=self.TIMEOUT
+        )
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(5),
+        retry=retry_if_result(lambda r: r.status_code == HTTPStatus.TOO_MANY_REQUESTS),
+    )
+    async def _make_post_request(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        json_data: AddPlaylistPayload | None = None,
+        params: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        headers = await self._get_headers()
+        if json_data is not None:
+            headers["Content-Type"] = "application/json"
+        return await client.post(
+            url, headers=headers, json=json_data, params=params, timeout=self.TIMEOUT
         )
 
     async def fetch_liked_items(self, client: httpx.AsyncClient, url: str) -> LikedTracksResponse:
@@ -175,6 +194,17 @@ class Client:
     ) -> httpx.Response:
         async with sem:
             return await self._make_delete_request(client, url, json_data)
+
+    async def post_with_sem(
+        self,
+        client: httpx.AsyncClient,
+        sem: asyncio.Semaphore,
+        url: str,
+        json_data: AddPlaylistPayload | None = None,
+        params: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        async with sem:
+            return await self._make_post_request(client, url, json_data, params)
 
     async def get_all_liked_tracks(self) -> None:
         self.logger.debug("Starting retrieval of all liked tracks")
@@ -253,17 +283,9 @@ class Client:
         self.logger.info("Generating content")
         url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
         self.logger.debug("Preparing to add tracks: total=%d", len(uri_list))
-        headers = await self._get_headers()
-        headers["Content-Type"] = "application/json"
 
         async with httpx.AsyncClient() as client:
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
-
-            async def post_with_sem(url: str, json_data: AddPlaylistPayload) -> httpx.Response:
-                async with sem:
-                    return await client.post(
-                        url, headers=headers, json=json_data, timeout=self.TIMEOUT
-                    )
 
             tasks = []
             for i in range(0, len(uri_list), self.BATCH_SIZE):
@@ -272,29 +294,28 @@ class Client:
                 # Note: We remove 'position' to allow concurrent appends.
                 # Order of blocks might vary but it's acceptable for randomness.
                 data: AddPlaylistPayload = {"uris": batch}
-                tasks.append(post_with_sem(url, data))
+                tasks.append(self.post_with_sem(client, sem, url, json_data=data))
             responses = await asyncio.gather(*tasks)
             for response in responses:
                 response.raise_for_status()
 
-    async def update_queue(self) -> None:
-        device_id = await self.get_available_device_id()
-        if not device_id:
-            self.logger.error("No available device found")
-            return
-        url = f"{self.api_url}/me/player/play?device_id={device_id}"
-        self.logger.info("Updating playlist queue")
-        playlist_uri = f"spotify:playlist:{self.spotify_playlist_id}"
-        headers = await self._get_headers()
-        headers["Content-Type"] = "application/json"
-        data = {
-            "context_uri": playlist_uri,
-            "offset": {"position": 0},
-        }
-        self.logger.debug("updating queue with playlist URI: %s", playlist_uri)
+    async def update_queue(self, uri_list: list[str]) -> None:
+        devices = await self.get_available_all_devices()
+        sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
+
+        async def queue_device(client: httpx.AsyncClient, device_id: str) -> None:
+            for uri in uri_list:
+                url = f"{self.api_url}/me/player/queue"
+                params = {
+                    "device_id": device_id,
+                    "uri": uri,
+                }
+                self.logger.info("Adding track %s to queue for device %s", uri, device_id)
+                response = await self.post_with_sem(client, sem, url, params=params)
+                response.raise_for_status()
+
         async with httpx.AsyncClient() as client:
-            response = await client.put(url, headers=headers, json=data, timeout=self.TIMEOUT)
-        response.raise_for_status()
+            await asyncio.gather(*(queue_device(client, d) for d in devices))
 
     async def get_all_playlists(self) -> None:
         self.logger.info("Getting all playlists")
