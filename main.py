@@ -32,7 +32,7 @@ async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
     await sp_client.delete_all_playlist_tracks()
     latest_uris = my_mongo.generate_random_playlist(100)
     await sp_client.populate_playlist_with_uris(latest_uris)
-    await sp_client.update_queue()
+    await sp_client.update_queue(latest_uris)
     my_mongo.close()
 
 
