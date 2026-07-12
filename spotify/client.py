@@ -3,6 +3,7 @@ import logging
 from collections.abc import AsyncGenerator
 from http import HTTPStatus
 from os import environ
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponential
@@ -50,21 +51,18 @@ class Client:
             if len(url) <= self.MAX_LOG_URL_LENGTH
             else url[: self.MAX_LOG_URL_LENGTH - 3] + "...",
         )
-        url_parts = url.split("?")
-        valid_number_of_parts = 2
-        temp_list: list[str] = []
-        if len(url_parts) == valid_number_of_parts:
-            temp_list = url_parts[1].split("&")
-        from_value = 0
-        to_value = 0
-        for item in temp_list:
-            tmp_val = item.split("=")
-            if tmp_val[0] == "offset":
-                from_value = int(tmp_val[1])
-            elif tmp_val[0] == "limit":
-                to_value = int(tmp_val[1])
-            else:
+
+        parsed = urlparse(url)
+        query_params = parse_qs(parsed.query)
+
+        for key in query_params:
+            if key not in ("offset", "limit"):
                 raise ValueError("Invalid URL")
+
+        from_value = int(query_params.get("offset", ["0"])[0])
+        # If limit is not specified, default to 100 if "/playlists/" in path, else 50.
+        default_limit = 100 if "/playlists/" in parsed.path else 50
+        to_value = int(query_params.get("limit", [str(default_limit)])[0])
 
         human = f"from {from_value} to {from_value + to_value}"
         self.logger.debug("Computed human readable batch window: %s", human)
@@ -235,10 +233,7 @@ class Client:
         self, client: httpx.AsyncClient
     ) -> AsyncGenerator[list[str]]:
         """Yield batches of track URIs from the playlist, always fetching from offset 0."""
-        url = (
-            f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
-            f"?offset=0&limit={self.BATCH_SIZE}"
-        )
+        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items?offset=0&limit={self.BATCH_SIZE}"
         while True:
             try:
                 response_data = await self.fetch_playlist_items(client, url)
