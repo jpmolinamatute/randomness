@@ -32,7 +32,6 @@ async def run(args: argparse.Namespace, logger: logging.Logger) -> None:
     await sp_client.delete_all_playlist_tracks()
     latest_uris = my_mongo.generate_random_playlist(100)
     await sp_client.populate_playlist_with_uris(latest_uris)
-    await sp_client.update_queue(latest_uris)
     my_mongo.close()
 
 
@@ -74,7 +73,7 @@ def main() -> None:
         asyncio.run(run(args, logger))
     except KeyboardInterrupt:
         sys.exit(1)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("An error occurred: %s", e)
         sys.exit(1)
     else:

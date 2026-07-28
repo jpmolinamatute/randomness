@@ -235,7 +235,10 @@ class Client:
         self, client: httpx.AsyncClient
     ) -> AsyncGenerator[list[str]]:
         """Yield batches of track URIs from the playlist, always fetching from offset 0."""
-        url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
+        url = (
+            f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
+            f"?offset=0&limit={self.BATCH_SIZE}"
+        )
         while True:
             try:
                 response_data = await self.fetch_playlist_items(client, url)
@@ -259,16 +262,15 @@ class Client:
                 break
 
     async def delete_all_playlist_tracks(self) -> None:
-        self.logger.debug("Deleting playlist content: playlist_id=%s", self.spotify_playlist_id)
-        self.logger.info("Deleting playlist content")
         url = f"{self.api_url}/playlists/{self.spotify_playlist_id}/items"
-
         async with httpx.AsyncClient() as client:
             sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
-
-            # Use async generator to process batches
             async for batch_uris in self._yield_playlist_tracks_batches(client):
-                self.logger.debug("Deleting batch: size=%d", len(batch_uris))
+                self.logger.info(
+                    "Deleting playlist items: url=%s timeout=%ss",
+                    url,
+                    self.TIMEOUT,
+                )
                 data: DeletePlaylistPayload = {"items": [{"uri": uri} for uri in batch_uris]}
                 try:
                     await self.delete_with_sem(client, sem, url, data)
@@ -298,24 +300,6 @@ class Client:
             responses = await asyncio.gather(*tasks)
             for response in responses:
                 response.raise_for_status()
-
-    async def update_queue(self, uri_list: list[str]) -> None:
-        devices = await self.get_available_all_devices()
-        sem = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
-
-        async def queue_device(client: httpx.AsyncClient, device_id: str) -> None:
-            for uri in uri_list:
-                url = f"{self.api_url}/me/player/queue"
-                params = {
-                    "device_id": device_id,
-                    "uri": uri,
-                }
-                self.logger.info("Adding track %s to queue for device %s", uri, device_id)
-                response = await self.post_with_sem(client, sem, url, params=params)
-                response.raise_for_status()
-
-        async with httpx.AsyncClient() as client:
-            await asyncio.gather(*(queue_device(client, d) for d in devices))
 
     async def get_all_playlists(self) -> None:
         self.logger.info("Getting all playlists")

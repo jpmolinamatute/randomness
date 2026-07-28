@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import Mapping, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from os import environ
 from pathlib import Path
 
@@ -57,7 +57,7 @@ class DB:
             self.mongo_db[self.tracks_coll_name].create_index("played_at")
             self.mongo_db[self.tracks_coll_name].create_index("artists._id")
         except Exception:
-            self.logger.exception("MongoDB is not available", exc_info=True)
+            self.logger.exception("MongoDB is not available")
             is_up = False
         return is_up
 
@@ -133,7 +133,7 @@ class DB:
             }
             export_data.append(data)
 
-        filename = f"export-{date.today()}.json"
+        filename = f"export-{datetime.now(tz=UTC).date()}.json"
         with Path(filename).open("w", encoding="utf-8") as f:
             json.dump(export_data, f, indent=4)
 
@@ -142,7 +142,7 @@ class DB:
     def validate_item_count(self, no_items: int) -> None:
         self.logger.debug("Validating requested item count: no_items=%s", no_items)
         if not isinstance(no_items, int):
-            raise ValueError("Number of items must be an integer")
+            raise TypeError("Number of items must be an integer")
         if no_items < 1:
             raise ValueError("Number of items must be greater than 0")
         if no_items > self.MAX_PLAYLIST_ITEMS:

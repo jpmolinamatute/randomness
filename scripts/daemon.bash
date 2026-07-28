@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/usr/local/sbin"
+PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
 COMPOSE_FILE="${ROOT_DIR}/docker/docker-compose.yaml"
 
 get_running_containers_count() {
@@ -34,9 +34,9 @@ stop_docker() {
 
 main(){
     start_docker
-    uv run "${ROOT_DIR}/main.py" "${@}"
+    uv run "${ROOT_DIR}/main.py" ${@+"$@"}
     stop_docker
     exit 0
 }
 
-main "${@}"
+main ${@+"$@"}

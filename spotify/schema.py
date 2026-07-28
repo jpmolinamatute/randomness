@@ -180,12 +180,12 @@ class Album(MongoIdMixin):
             # If string, require string precision and parse it
             if isinstance(release_date, str):
                 if not isinstance(precision, str):
-                    raise ValueError(
+                    raise TypeError(
                         f"release_date is a string but release_date_precision is not a string (value: {precision})"
                     )
                 data["release_date"] = parse_release_date(release_date, precision)
             else:
-                raise ValueError(
+                raise TypeError(
                     f"release_date must be a datetime, date, or string (value: {release_date})"
                 )
         return data
@@ -333,12 +333,12 @@ class Episode(SpotifyItem):
             # If string, require string precision and parse it
             if isinstance(release_date, str):
                 if not isinstance(precision, str):
-                    raise ValueError(
+                    raise TypeError(
                         f"release_date is a string but release_date_precision is not a string (value: {precision})"
                     )
                 data["release_date"] = parse_release_date(release_date, precision)
             else:
-                raise ValueError(
+                raise TypeError(
                     f"release_date must be a datetime, date, or string (value: {release_date})"
                 )
         return data

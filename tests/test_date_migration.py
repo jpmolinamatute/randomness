@@ -85,5 +85,5 @@ def test_album_validation_fails_on_invalid_types():
         "uri": "spotify:album:123",
         "artists": [],
     }
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, TypeError)):
         Album.model_validate(album_data)
