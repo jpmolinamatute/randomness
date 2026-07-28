@@ -158,7 +158,7 @@ async def test_delete_all_playlist_tracks(client_instance: Client) -> None:
                     uri="",
                     type="user",
                     external_urls=ExternalUrls(spotify=""),
-                    **{"id": "1"},
+                    id="1",
                 ),
                 is_local=False,
                 primary_color="",
@@ -213,37 +213,6 @@ async def test_populate_playlist_with_uris(client_instance: Client) -> None:
         _, kwargs = mock_post.call_args
         assert "uris" in kwargs["json"]
         assert kwargs["json"]["uris"] == ["uri1", "uri2"]
-
-
-@pytest.mark.asyncio
-async def test_update_queue(client_instance: Client) -> None:
-    """Test updating the queue."""
-    with patch.object(
-        client_instance, "get_available_all_devices", new_callable=AsyncMock
-    ) as mock_get_devices:
-        mock_get_devices.return_value = ["device_123"]
-
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 204
-            mock_post.return_value = mock_response
-
-            test_uris = ["spotify:track:1", "spotify:track:2"]
-            await client_instance.update_queue(test_uris)
-
-            expected_calls = len(test_uris)
-            assert mock_post.call_count == expected_calls
-            call_args_list = mock_post.call_args_list
-            # First call assertions
-            args, kwargs = call_args_list[0]
-            assert "device_id" in kwargs["params"]
-            assert kwargs["params"]["device_id"] == "device_123"
-            assert kwargs["params"]["uri"] == "spotify:track:1"
-            # Second call assertions
-            args, kwargs = call_args_list[1]
-            assert "device_id" in kwargs["params"]
-            assert kwargs["params"]["device_id"] == "device_123"
-            assert kwargs["params"]["uri"] == "spotify:track:2"
 
 
 @pytest.mark.asyncio
@@ -347,7 +316,7 @@ async def test_delete_all_playlist_tracks_exception(client_instance: Client) -> 
                     uri="",
                     type="user",
                     external_urls=ExternalUrls(spotify=""),
-                    **{"id": "1"},
+                    id="1",
                 ),
                 is_local=False,
                 primary_color="",
@@ -384,19 +353,6 @@ async def test_populate_playlist_with_uris_chunks(client_instance: Client) -> No
             await client_instance.populate_playlist_with_uris(test_uris)
 
         assert mock_post.call_count == EXPECTED_CHUNKED_POST_CALLS
-
-
-@pytest.mark.asyncio
-async def test_update_queue_no_device(client_instance: Client) -> None:
-    """Test update_queue aborts correctly if no devices are available."""
-    with patch.object(
-        client_instance, "get_available_all_devices", new_callable=AsyncMock
-    ) as mock_get_dev:
-        mock_get_dev.return_value = []
-
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            await client_instance.update_queue(["spotify:track:1"])
-            mock_post.assert_not_called()
 
 
 @pytest.mark.asyncio

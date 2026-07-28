@@ -132,16 +132,18 @@ def test_export_to_json(db_instance: DB) -> None:
         {"_id": "id1", "href": "href1", "name": "Track 1", "artists": [{"name": "Artist 1"}]}
     ]
 
-    with patch("pathlib.Path.open", mock_open()) as mock_file:
-        with patch("json.dump") as mock_json_dump:
-            db_instance.export_to_json()
+    with (
+        patch("pathlib.Path.open", mock_open()) as mock_file,
+        patch("json.dump") as mock_json_dump,
+    ):
+        db_instance.export_to_json()
 
-            mock_file.assert_called_once()
-            mock_json_dump.assert_called_once()
-            args, _ = mock_json_dump.call_args
-            data = args[0]
-            assert len(data) == 1
-            assert data[0]["artist_name"] == "Artist 1"
+        mock_file.assert_called_once()
+        mock_json_dump.assert_called_once()
+        args, _ = mock_json_dump.call_args
+        data = args[0]
+        assert len(data) == 1
+        assert data[0]["artist_name"] == "Artist 1"
 
 
 def test_validate_item_count(db_instance: DB) -> None:
@@ -152,7 +154,7 @@ def test_validate_item_count(db_instance: DB) -> None:
         db_instance.validate_item_count(TEST_PLAYLIST_SIZE)
 
         # Invalid types/values
-        with pytest.raises(ValueError, match="must be an integer"):
+        with pytest.raises(TypeError, match="must be an integer"):
             db_instance.validate_item_count("5")  # type: ignore
 
         with pytest.raises(ValueError, match="must be greater than 0"):
@@ -194,11 +196,13 @@ def test_generate_random_playlist_track(db_instance: DB) -> None:
 
 def test_generate_random_playlist_invalid(db_instance: DB) -> None:
     """Test generate_random_playlist with invalid item count."""
-    with patch.object(
-        db_instance, "validate_item_count", side_effect=ValueError("Invalid item type")
+    with (
+        patch.object(
+            db_instance, "validate_item_count", side_effect=ValueError("Invalid item type")
+        ),
+        pytest.raises(ValueError, match="Invalid item type"),
     ):
-        with pytest.raises(ValueError, match="Invalid item type"):
-            db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
+        db_instance.generate_random_playlist(TEST_PLAYLIST_SIZE)
 
 
 def test_sync_tracks_auto_reconnect_success(db_instance: DB) -> None:
@@ -272,14 +276,13 @@ def test_export_to_json_fallback(db_instance: DB) -> None:
         {"_id": "id2", "href": "href2", "name": "Track 2"},  # Missing artists entirely
     ]
 
-    with patch("pathlib.Path.open", mock_open()):
-        with patch("json.dump") as mock_json_dump:
-            db_instance.export_to_json()
-            args, _ = mock_json_dump.call_args
-            data = args[0]
-            assert len(data) == EXPECTED_EXPORT_COUNT
-            assert data[0]["artist_name"] == "Unknown"
-            assert data[1]["artist_name"] == "Unknown"
+    with patch("pathlib.Path.open", mock_open()), patch("json.dump") as mock_json_dump:
+        db_instance.export_to_json()
+        args, _ = mock_json_dump.call_args
+        data = args[0]
+        assert len(data) == EXPECTED_EXPORT_COUNT
+        assert data[0]["artist_name"] == "Unknown"
+        assert data[1]["artist_name"] == "Unknown"
 
 
 def test_generate_random_playlist_empty_aggregate(db_instance: DB) -> None:

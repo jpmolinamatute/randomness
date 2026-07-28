@@ -102,16 +102,18 @@ def test_handle_oauth(auth_instance: Auth) -> None:
     """Test handle_oauth invokes async token exchange and sets event."""
     auth_instance.auth_event = MagicMock()
 
-    with patch("asyncio.run") as mock_asyncio_run:
-        with patch.object(
+    with (
+        patch("asyncio.run") as mock_asyncio_run,
+        patch.object(
             auth_instance, "exchange_code_for_token", new_callable=MagicMock
-        ) as mock_exchange:
-            mock_exchange.return_value = "fake_coroutine_object"
-            auth_instance.handle_oauth("test_code")
+        ) as mock_exchange,
+    ):
+        mock_exchange.return_value = "fake_coroutine_object"
+        auth_instance.handle_oauth("test_code")
 
-            mock_exchange.assert_called_once_with("test_code")
-            mock_asyncio_run.assert_called_once()
-            auth_instance.auth_event.set.assert_called_once()
+        mock_exchange.assert_called_once_with("test_code")
+        mock_asyncio_run.assert_called_once()
+        auth_instance.auth_event.set.assert_called_once()
 
 
 def test_start_auth_flow_timeout(auth_instance: Auth) -> None:
@@ -124,37 +126,41 @@ def test_start_auth_flow_timeout(auth_instance: Auth) -> None:
             mock_thread = MagicMock()
             mock_thread_cls.return_value = mock_thread
 
-            with patch("webbrowser.open", return_value=True):
+            with (
+                patch("webbrowser.open", return_value=True),
                 # We patch AUTH_TIMEOUT_SECONDS to be extremely low, but patching Event is cleaner
-                with patch("threading.Event") as mock_event_cls:
-                    mock_event = MagicMock()
-                    mock_event.wait.return_value = False  # Simulate timeout
-                    mock_event_cls.return_value = mock_event
+                patch("threading.Event") as mock_event_cls,
+            ):
+                mock_event = MagicMock()
+                mock_event.wait.return_value = False  # Simulate timeout
+                mock_event_cls.return_value = mock_event
 
-                    with pytest.raises(TokenError, match="Timeout waiting for user authorization"):
-                        auth_instance.start_auth_flow()
+                with pytest.raises(TokenError, match="Timeout waiting for user authorization"):
+                    auth_instance.start_auth_flow()
 
-                    mock_httpd.shutdown.assert_called_once()
-                    mock_thread.join.assert_called_once()
+                mock_httpd.shutdown.assert_called_once()
+                mock_thread.join.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_load_or_authenticate_tokens(auth_instance: Auth) -> None:
     """Test token loader orchestrates properly."""
     # Test path 1: load fails -> triggers start_auth_flow
-    with patch("spotify.token.Token.load_tokens", side_effect=TokenError("no token")):
-        with patch.object(auth_instance, "start_auth_flow") as mock_start_flow:
-            await auth_instance.load_or_authenticate_tokens()
-            mock_start_flow.assert_called_once()
+    with (
+        patch("spotify.token.Token.load_tokens", side_effect=TokenError("no token")),
+        patch.object(auth_instance, "start_auth_flow") as mock_start_flow,
+    ):
+        await auth_instance.load_or_authenticate_tokens()
+        mock_start_flow.assert_called_once()
 
     # Test path 2: load succeeds, but expired -> triggers refresh
     auth_instance.credentials.expires_at = time.time() - 1000
-    with patch("spotify.token.Token.load_tokens"):
-        with patch.object(
-            auth_instance, "refresh_access_token", new_callable=AsyncMock
-        ) as mock_refresh:
-            await auth_instance.load_or_authenticate_tokens()
-            mock_refresh.assert_called_once()
+    with (
+        patch("spotify.token.Token.load_tokens"),
+        patch.object(auth_instance, "refresh_access_token", new_callable=AsyncMock) as mock_refresh,
+    ):
+        await auth_instance.load_or_authenticate_tokens()
+        mock_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
