@@ -148,10 +148,11 @@ def test_export_to_json(db_instance: DB) -> None:
 
 def test_validate_item_count(db_instance: DB) -> None:
     """Test validate_item_count method."""
-    # Mock count_track to return 200 (enough for max check)
-    with patch.object(db_instance, "count_track", return_value=200):
+    # Mock count_track to return 20000 (enough for max check)
+    with patch.object(db_instance, "count_track", return_value=20000):
         # Valid count
         db_instance.validate_item_count(TEST_PLAYLIST_SIZE)
+        db_instance.validate_item_count(200)
 
         # Invalid types/values
         with pytest.raises(TypeError, match="must be an integer"):
@@ -160,11 +161,11 @@ def test_validate_item_count(db_instance: DB) -> None:
         with pytest.raises(ValueError, match="must be greater than 0"):
             db_instance.validate_item_count(0)
 
-        with pytest.raises(ValueError, match="Number of items must be less than or equal to 100"):
-            db_instance.validate_item_count(101)
+        with pytest.raises(ValueError, match="Number of items must be less than or equal to 10000"):
+            db_instance.validate_item_count(10001)
 
         with pytest.raises(ValueError, match="must be less than"):
-            db_instance.validate_item_count(250)
+            db_instance.validate_item_count(25000)
 
 
 def test_generate_random_playlist_track(db_instance: DB) -> None:

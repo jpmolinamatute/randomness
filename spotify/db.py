@@ -18,7 +18,7 @@ type MongoPipeline = Sequence[Mapping[str, object]]
 class DB:
     MAX_SIZE_WINDOW = 300
     RATIO_WINDOW = 3
-    MAX_PLAYLIST_ITEMS = 100
+    MAX_PLAYLIST_ITEMS = 10000
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)

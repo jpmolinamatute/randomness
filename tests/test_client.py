@@ -22,6 +22,8 @@ EXPECTED_PLAYLIST_PAGES_CALLS = 2
 EXPECTED_LIKED_TRACKS_BATCHES = 3
 EXPECTED_TOTAL_LIKED_TRACKS = 150
 EXPECTED_CHUNKED_POST_CALLS = 3
+EXPECTED_200_BATCHES = 2
+EXPECTED_200_BATCH_SIZE = 100
 
 
 @pytest.mark.asyncio
@@ -368,3 +370,80 @@ async def test_fetch_liked_tracks_batch_exception(client_instance: Client) -> No
 
         with pytest.raises(ValidationError):
             await client_instance.fetch_liked_items(mock_client, "http://uri?offset=0&limit=5")
+
+
+@pytest.mark.asyncio
+async def test_populate_playlist_200_uris(client_instance: Client) -> None:
+    """Test populating playlist with 200 URIs yields exactly 2 POST calls of 100 URIs each."""
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        r = MagicMock()
+        r.status_code = 201
+        mock_post.return_value = r
+
+        test_uris = [f"spotify:track:{i}" for i in range(200)]
+        await client_instance.populate_playlist_with_uris(test_uris)
+
+        assert mock_post.call_count == EXPECTED_200_BATCHES
+        first_call_uris = mock_post.call_args_list[0][1]["json"]["uris"]
+        second_call_uris = mock_post.call_args_list[1][1]["json"]["uris"]
+        assert len(first_call_uris) == EXPECTED_200_BATCH_SIZE
+        assert len(second_call_uris) == EXPECTED_200_BATCH_SIZE
+        assert first_call_uris[0] == "spotify:track:0"
+        assert second_call_uris[0] == "spotify:track:100"
+
+
+@pytest.mark.asyncio
+async def test_delete_all_playlist_tracks_200_items(client_instance: Client) -> None:
+    """Test deleting 200 tracks from a playlist yields 2 DELETE batches of 100 tracks."""
+    batch_1_items = [
+        PlaylistItem(
+            track=get_valid_track_data(f"spotify:track:{i}", f"Track {i}")["track"],
+            item=get_valid_track_data(f"spotify:track:{i}", f"Track {i}")["track"],
+            added_at="2023-01-01T00:00:00Z",
+            added_by=Owner(
+                href="", uri="", type="user", external_urls=ExternalUrls(spotify=""), id="1"
+            ),
+            is_local=False,
+            primary_color="",
+            video_thumbnail=VideoThumbnail(url=None),
+        )
+        for i in range(100)
+    ]
+    batch_2_items = [
+        PlaylistItem(
+            track=get_valid_track_data(f"spotify:track:{i}", f"Track {i}")["track"],
+            item=get_valid_track_data(f"spotify:track:{i}", f"Track {i}")["track"],
+            added_at="2023-01-01T00:00:00Z",
+            added_by=Owner(
+                href="", uri="", type="user", external_urls=ExternalUrls(spotify=""), id="1"
+            ),
+            is_local=False,
+            primary_color="",
+            video_thumbnail=VideoThumbnail(url=None),
+        )
+        for i in range(100, 200)
+    ]
+
+    items_batch_1 = PlaylistItems(
+        href="http://href", limit=100, offset=0, total=200, items=batch_1_items
+    )
+    items_batch_2 = PlaylistItems(
+        href="http://href", limit=100, offset=0, total=100, items=batch_2_items
+    )
+
+    with patch.object(
+        client_instance, "fetch_playlist_items", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.side_effect = [items_batch_1, items_batch_2]
+
+        with patch.object(
+            client_instance, "delete_with_sem", new_callable=AsyncMock
+        ) as mock_delete:
+            await client_instance.delete_all_playlist_tracks()
+
+            assert mock_fetch.call_count == EXPECTED_200_BATCHES
+            assert mock_delete.call_count == EXPECTED_200_BATCHES
+            call_1_uris = [item["uri"] for item in mock_delete.call_args_list[0][0][3]["items"]]
+            call_2_uris = [item["uri"] for item in mock_delete.call_args_list[1][0][3]["items"]]
+            assert len(call_1_uris) == EXPECTED_200_BATCH_SIZE
+            assert len(call_2_uris) == EXPECTED_200_BATCH_SIZE
